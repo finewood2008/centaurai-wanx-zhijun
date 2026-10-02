@@ -1,0 +1,60 @@
+{
+  "name": "zhijun-wanx-desktop",
+  "productName": "知君",
+  "version": "0.6.1",
+  "private": true,
+  "type": "module",
+  "main": "shell/main.cjs",
+  "description": "知君独立桌面端，共用 WANX 账号并从空白积累独立个人档案",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run && node --test tests/*.test.cjs",
+    "start": "electron .",
+    "package:mac": "node shell/package-mac.cjs"
+  },
+  "dependencies": {
+    "antd": "^5.29.1",
+    "dayjs": "^1.11.13",
+    "i18next": "^25.8.4",
+    "qrcode.react": "^4.2.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-i18next": "^16.5.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^25.0.3",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@vitejs/plugin-react": "^4.4.1",
+    "electron": "37.10.3",
+    "electron-builder": "26.15.3",
+    "jsdom": "^25.0.1",
+    "less": "^4.5.1",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.6"
+  },
+  "build": {
+    "appId": "ai.zhijun.wanx",
+    "productName": "知君",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "shell/**",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "assets/zhijun.icns",
+      "category": "public.app-category.lifestyle",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "知君仅在你开始语音输入后使用麦克风，将识别文字放入可编辑草稿。",
+        "NSSpeechRecognitionUsageDescription": "知君请求设备端语音识别权限，音频仅在本机识别，不自动发送至云端。"
+      }
+    }
+  }
+}

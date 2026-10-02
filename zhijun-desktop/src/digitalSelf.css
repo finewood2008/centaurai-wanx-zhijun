@@ -1,0 +1,202 @@
+/* Digital selves share the same quiet paper and cinnabar palette. */
+.digital-self {
+  color: var(--ink);
+}
+.self-network {
+  margin: 18px 0 30px;
+  line-height: 1.8;
+}
+.self-section {
+  padding: 24px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+}
+.self-section > summary {
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+.self-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+.self-section-heading h3,
+.self-section-heading h4 {
+  margin: 0;
+}
+.self-fields {
+  display: grid;
+  gap: 20px;
+  margin: 24px 0;
+}
+.digital-self label:not(.self-check) {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.digital-self input:not([type="checkbox"]),
+.digital-self textarea,
+.digital-self select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 11px 13px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  box-sizing: border-box;
+}
+.digital-self textarea {
+  resize: vertical;
+  line-height: 1.9;
+}
+.self-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.9;
+  margin: 18px 0;
+}
+.digital-self .self-check input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  padding: 0;
+  margin-top: 6px;
+  accent-color: var(--red);
+}
+.self-entry,
+.self-source,
+.self-visitor,
+.self-directory-row {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border);
+}
+.self-entry > summary {
+  cursor: pointer;
+  line-height: 1.8;
+}
+.self-entry > summary span {
+  margin-left: 16px;
+}
+.self-prose {
+  font-size: 16px;
+  line-height: 1.95;
+  overflow-wrap: anywhere;
+}
+.self-prose p {
+  margin: 0 0 1em;
+}
+.self-prose h1,
+.self-prose h2,
+.self-prose h3 {
+  font-size: 1.12em;
+  margin: 1.4em 0 0.6em;
+}
+.self-prose ul,
+.self-prose ol {
+  padding-left: 1.5em;
+}
+.self-prose pre {
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+.self-prose table {
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.self-prose td,
+.self-prose th {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.self-publish {
+  margin: 26px 0;
+}
+.self-disclosure,
+.self-citation {
+  background: #f5f0e7;
+  padding: 20px;
+  border-radius: 10px;
+  margin: 24px 0;
+}
+.self-disclosure p {
+  font-size: 14px;
+  line-height: 1.9;
+}
+.self-message {
+  margin: 36px 0;
+}
+.self-message small {
+  display: block;
+  margin-bottom: 10px;
+}
+.self-message-user {
+  color: var(--muted);
+  padding-left: 22px;
+}
+.self-message details {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 16px 0;
+}
+.self-composer {
+  margin-top: 28px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.self-composer > textarea {
+  border: 0;
+  padding: 6px 0;
+}
+.self-composer .actions {
+  justify-content: space-between;
+  margin-top: 12px;
+}
+.self-choices {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 16px 0;
+}
+.self-choices button {
+  text-align: left;
+  line-height: 1.7;
+}
+.digital-self .actions {
+  flex-wrap: wrap;
+}
+.digital-self .actions > input {
+  flex: 1;
+  min-width: 180px;
+}
+@media (max-width: 620px) {
+  .self-section-heading {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .self-choices {
+    grid-template-columns: 1fr;
+  }
+}
+.digital-self .view-tabs {
+  display: flex;
+  gap: 26px;
+  border-bottom: 1px solid var(--border);
+}
+.digital-self .view-tabs button {
+  border: 0;
+  border-radius: 0;
+  padding: 8px 0 15px;
+  background: transparent;
+  color: var(--muted);
+}
+.digital-self .view-tabs button[aria-selected="true"] {
+  color: var(--red);
+  border-bottom: 1px solid var(--red);
+}

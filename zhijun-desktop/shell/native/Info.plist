@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>ai.zhijun.wanx.speech</string>
+  <key>CFBundleName</key>
+  <string>知君语音</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>知君仅在你点击开始后请求设备端语音识别权限，将本机转写结果放入可编辑草稿；音频不发送至云端。</string>
+</dict>
+</plist>
