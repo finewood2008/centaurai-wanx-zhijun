@@ -1,0 +1,24 @@
+.brand .brand-trigger{flex:none;width:44px;height:44px;aspect-ratio:1;border-radius:3px;padding:0;border:0;font-size:28px;line-height:1;background:var(--red);color:#fff9ed}
+.brand .brand-trigger:hover{background:#913e2b}
+.brand .brand-copy{height:44px;display:flex;flex-direction:column;justify-content:center;gap:5px}
+.brand .brand-copy strong{font-size:25px;line-height:29px;letter-spacing:.16em}
+.brand .brand-copy small{font-size:8px;line-height:10px;letter-spacing:.13em;margin:0;white-space:nowrap}
+.about-zhijun{position:fixed;inset:0;width:min(380px,calc(100vw - 32px));max-height:calc(100dvh - 32px);margin:auto;padding:38px 32px 24px;border:1px solid #e2d7c7;border-radius:18px;background:var(--paper);color:var(--ink);box-shadow:0 24px 90px #30271c30;overflow:auto}
+.about-zhijun::backdrop{background:#332e2855;backdrop-filter:blur(4px)}
+.about-close{position:absolute;top:12px;right:12px;border:0;padding:6px;color:#8a8073}
+.about-identity{display:flex;align-items:center;justify-content:center;gap:15px}
+.about-identity .seal{width:52px;height:52px;aspect-ratio:1;border-radius:3px;font-size:34px;flex:none}
+.about-identity h2{margin:0;font-size:30px;line-height:36px;letter-spacing:.16em}
+.about-identity div>span{display:block;margin-top:5px;font-size:9px;line-height:12px;letter-spacing:.13em;color:#918978}
+.about-position{text-align:center;margin:30px 0 0}
+.about-position p{margin:0;font-size:18px;line-height:1.6;letter-spacing:.08em}
+.about-position>span{display:block;margin-top:7px;font-size:12px;letter-spacing:.04em;color:#918978}
+.about-purpose{text-align:center;font-family:"Songti SC",STSong,serif;color:var(--red);font-size:21px;line-height:1.8;margin:24px 0 30px;white-space:nowrap}
+.about-footer{border-top:1px solid #e6ded2;padding-top:22px}
+.about-maker{display:flex;align-items:center;justify-content:center;gap:12px}
+.about-maker img{flex:none;width:64px;height:64px;object-fit:contain}
+.about-maker>div{min-height:64px;display:flex;flex-direction:column;justify-content:center;gap:6px}
+.about-maker strong{display:block;font-size:16px;line-height:24px;font-weight:500;letter-spacing:.06em}
+.about-maker span{display:block;font-size:13px;line-height:20px;letter-spacing:.06em;color:#918978}
+.about-version{text-align:center;font-size:11px;color:#9c9285;margin:18px 0 0;line-height:1.5;font-variant-numeric:tabular-nums}
+@media(max-width:640px){.sidebar .brand .brand-trigger,.brand.login-brand .brand-trigger{width:36px;height:36px}.sidebar .brand .brand-copy{display:none}.about-zhijun{padding-inline:24px}.about-purpose{font-size:19px}}

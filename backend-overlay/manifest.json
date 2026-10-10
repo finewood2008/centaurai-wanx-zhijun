@@ -3,7 +3,10 @@
   "files": {
     "api/routers/role_ontology.py": {
       "before_sha256": null,
-      "after_sha256": "1242bf6df302afd7e1e64143997f2e56a0760e7b027059cb805de4394ad13541"
+      "after_sha256": "e748465cb1ac7457f273b1e1cf4ad7620a3d38e3693106cd42d24ebbe9d94aa6",
+      "compatible_sha256": [
+        "1242bf6df302afd7e1e64143997f2e56a0760e7b027059cb805de4394ad13541"
+      ]
     },
     "api/routers/agents.py": {
       "before_sha256": "65dfde0e6fdfe4bbb569307ace1f1f5558302c9acc0bcf8c6d24478c3f819931",
@@ -11,15 +14,24 @@
     },
     "infra/agents/role_ontology.py": {
       "before_sha256": null,
-      "after_sha256": "bf92639a93cff6029459a591a211ebdaa1856547a0c3d7240c09e2d4735fafde"
+      "after_sha256": "ad1adbfa2ad4224c888d09efa3520c898e3a9218c0e066a153f32c0463937129",
+      "compatible_sha256": [
+        "bf92639a93cff6029459a591a211ebdaa1856547a0c3d7240c09e2d4735fafde"
+      ]
     },
     "infra/agents/ontology_types.py": {
       "before_sha256": "630fb9681b5d2b14878beffcf91badd57de5bb810d7e150394636a3802593845",
-      "after_sha256": "ddd0fc3a88efb4e7d5f03f953c1c15844135b942a9414f17128775c0533db8eb"
+      "after_sha256": "a77e52f879d9f3e6d54016e822dbc9eac0c697cf091e894e7e2885caa3e953a9",
+      "compatible_sha256": [
+        "ddd0fc3a88efb4e7d5f03f953c1c15844135b942a9414f17128775c0533db8eb"
+      ]
     },
     "infra/agents/personal_ontology.py": {
       "before_sha256": "31df43a033da1f6f588f5b53d9b93a7ce781969773e0cc1126de4c362201ffe5",
-      "after_sha256": "376af0312b425fffa61eb36a08f5f6f454f10836aeba42070c6103c3bb3239cb"
+      "after_sha256": "f41acd95442b26e0a6c0c9f0912307d4a24746b52dddd2a910c11cfdcc27df95",
+      "compatible_sha256": [
+        "376af0312b425fffa61eb36a08f5f6f454f10836aeba42070c6103c3bb3239cb"
+      ]
     },
     "infra/agents/ontology_admission.py": {
       "before_sha256": "e3b9546c22e692f9e4f2e5dca0232312f818079bc7817c4d72421d82ca9bbd0e",
@@ -27,7 +39,14 @@
     },
     "infra/agents/manager.py": {
       "before_sha256": "37d5771dbdbf65968d5578601816126ca964fcb4db973fa25362cc588a5ce9ca",
-      "after_sha256": "7b97200b3e4418bc70d87474564098120aac8ce4e64727b56c571c41365e8c0d"
+      "after_sha256": "e41d35e0a3af12a1e22c3a6cbaffe3b2d7f585c62c0ac4c0536579f53c8b27ca",
+      "compatible_sha256": [
+        "7b97200b3e4418bc70d87474564098120aac8ce4e64727b56c571c41365e8c0d"
+      ]
+    },
+    "infra/agents/role_ontology_flow.py": {
+      "before_sha256": null,
+      "after_sha256": "6cd6fbb2a28eb0b29c72d2675540e9ed9caf851601b12ce4b8647a61d5c4fb44"
     }
   },
   "dependencies": {

@@ -1,3 +1,4 @@
+import {Brand} from './Brand';
 import {useEffect, useRef, useState} from 'react';
 import {ArrowRight, RefreshCw} from 'lucide-react';
 import CaptchaField, {CaptchaFieldHandle} from './captcha/CaptchaField';
@@ -25,7 +26,7 @@ export function Login({onSuccess}:{onSuccess:()=>void}) {
   },[attempt]);
   return <main className="login-page">
     <section className="login-content">
-      <div className="brand login-brand"><span className="seal">知</span><div><strong>知君</strong><small>CONTEXT OF ME</small></div></div>
+      <Brand className="login-brand"/>
       <div className="login-form-wrap">
         <span className="eyebrow">A PLACE TO BE YOURSELF</span>
         <h1>高山流水，<br/>有处可说。</h1>

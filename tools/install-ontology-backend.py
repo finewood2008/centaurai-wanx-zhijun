@@ -15,7 +15,7 @@ for path in files:
  rel=str(path.relative_to(source));dest=target/rel;expected=spec['files'][rel]
  if sha(path)!=expected['after_sha256']:raise SystemExit('Overlay source changed; refresh manifest after review: '+rel)
  actual=sha(dest) if dest.exists() else None
- if actual not in {expected['before_sha256'],expected['after_sha256']}:raise SystemExit('Target changed; merge rather than overwrite: '+rel)
+ if actual not in {expected['before_sha256'],expected['after_sha256'],*expected.get('compatible_sha256',[])}:raise SystemExit('Target changed; merge rather than overwrite: '+rel)
 for path in files:py_compile.compile(str(path),doraise=True)
 backup=root/'verification'/('ontology-runtime-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
 manifest=[]
