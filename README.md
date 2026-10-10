@@ -1,38 +1,73 @@
-### 3 分钟了解如何进入开发
+# 知君 · newzhijun
 
-欢迎使用云效代码管理 Codeup，通过阅读以下内容，你可以快速熟悉 Codeup ，并立即开始今天的工作。
+知己与导师，Context of Me。纸白、深墨与朱红的独立客户端，智能能力由 WANX 提供。
 
-### 提交**文件**
+同一位用户可以创建个人、工作等不同角色。每个角色复用同一专家能力模板，但使用独立的私人实例、对话、记忆、知识库和本体。客户端不直接调用模型，也不建立第二套记忆数据库。
 
-Codeup 支持两种方式进行代码提交：网页端提交，以及本地 Git 客户端提交。
+## 当前能力
 
-* 如需体验本地命令行操作，请先安装 Git 工具，安装方法参见[安装Git](https://help.aliyun.com/document_detail/153800.html)。
+- 完整登录页、会话恢复、账户与阅读设置；移除仅前端的滑动验证，保留 WANX 要求的第三方验证码。角色入口位于侧栏底部，头像进入设置。
+- 登录前可在右下角搜索局域网万象WANX 或手动输入地址；进入应用后隐藏“连接服务”。不同后端的会话、实例和角色分别保存。
+- 从万象“专家 → 我的专家”自动匹配知君；只有一个可用结果时直接连接，多个时弹窗选择。共享来源专家使用当前账户的私人实例，角色继续隔离。
+- 原生 WebSocket 流式对话、对话附件、历史、操作确认、断线重连；发送后立即显示消息。
+- 九个原生记忆视图；用户画像分为「本体雷达 / 记忆资料」。
+- 本体雷达：先核对记忆事实，再核对理解；简化的一张雷达、按需展开的编辑面板、五类个人本体、重要性、关联程度、直接修改、条件与例外、有效期、修改记录、停用及版本恢复。
+- 本体只在本人确认后进入可用上下文；当前角色已确认事实的来源变更、失效或撤回确认，会使依赖它的理解退出可用上下文。
+- 对话在 WANX 模型调用前选择当前角色的有效本体，遵守当下表达优先；可查看本次参考内容、下一轮排除某项或停止以后使用。资料解释要求先忠实于原文，再讨论与本人的关联。
+- 默认私人知识库、多文件上传、状态与预览；微信连接与角色记忆整理设置。
+- Windows 0.4.2 桌面端直接显示同一登录页，在本机局域网发现并连接 WANX；安装包不再绑定家庭服务器，也不包含旧配对页。`remote-connect/` 保留旧部署的服务源码，不再随桌面安装包分发。
 
-* 如需体验 SSH 方式克隆和提交代码，请先在平台账号内配置 SSH 公钥，配置方法参见[配置 SSH 密钥](https://help.aliyun.com/document_detail/153709.html)。
+## 快速启动
 
-* 如需体验 HTTP 方式克隆和提交代码，请先在平台账号内配置克隆账密，配置方法参见[配置 HTTPS 克隆账号密码](https://help.aliyun.com/document_detail/153710.html)。
+需要 Node.js 22+ 和已配置账户、模型及知君专家的兼容 WANX。使用本人拥有的知君专家时，可以自动准备私人实例；共享给其他账户的专家需要管理员提供可复用的行为模板。
 
-现在，你可以在 Codeup 中提交代码文件了，跟着文档「[__提交第一行代码__](https://help.aliyun.com/document_detail/153707.html?spm=a2c4g.153710.0.0.3c213774PFSMIV#6a5dbb1063ai5)」一起操作试试看吧。
+```sh
+npm ci
+cp deployment.example.json deployment.json
+# 填写 WANX 地址；已有私人实例可保留账户绑定
+npm run build
+npm start
+```
 
-<img src="https://img.alicdn.com/imgextra/i3/O1CN013zHrNR1oXgGu8ccvY_!!6000000005235-0-tps-2866-1268.jpg" width="100%" />
+默认访问 `http://127.0.0.1:28730`。现有机器不要用示例覆盖自己的 `deployment.json`。
 
+桌面端构建：`npm --prefix desktop ci` → `npm run build` → `node tools/prepare-desktop.mjs` → `npm --prefix desktop run package:win -- --publish never`。桌面端不需要 `deployment.json` 或 `server-profile.json`，首次使用在登录页右下角选择 WANX；对话、记忆与知识库仍保存在所选 WANX。
 
-### 进行代码检测
+开发入口 `npm run dev` 使用 28731；API 服务使用 `ZHIJUN_PUBLIC_ORIGIN=http://127.0.0.1:28731 npm start`，Vite 代理 HTTP 与 WebSocket。
 
-开发过程中，为了更好的维护你的代码质量，你可以开启 Codeup 内置开箱即用的「[代码检测服务](https://help.aliyun.com/document_detail/434321.html)」，开启后提交或合并请求的变更将自动触发检测，识别代码编写规范和安全漏洞问题，并及时提供结果报表和修复建议。
+## WANX 后端
 
-<img src="https://img.alicdn.com/imgextra/i2/O1CN01BRzI1I1IO0CR2i4Aw_!!6000000000882-0-tps-2862-1362.jpg" width="100%" />
+本体的权威记录存放在每个私人实例的 WANX 工作区，原生记忆继续作为来源。`backend-overlay/` 是配套后端源码，必须与客户端一起部署；仅更新前端不会启用本体 API。
 
-### 开展代码评审
+当前补丁基于本地 WANX/Octop `1.0.2b4` 加既有知君本体模块，不能按版本号判断任意同名上游是否兼容。安装前应核对文件哈希和依赖。详见 [后端部署](docs/ONTOLOGY-DEPLOYMENT.md)。
 
-功能开发完毕后，通常你需要发起「[代码评审并执行合并](https://help.aliyun.com/document_detail/153872.html)」，Codeup 支持多人协作的代码评审服务，你可以通过「[保护分支设置合并规则](https://help.aliyun.com/document_detail/153873.html?spm=a2c4g.203108.0.0.430765d1l9tTRR#p-4on-aep-l5q)」策略及「[__合并请求设置__](https://help.aliyun.com/document_detail/153874.html?spm=a2c4g.153871.0.0.3d38686cJpcdJI)」对合并过程进行流程化管控，同时提供在线代码评审及冲突解决能力，让评审过程更加流畅。
+```sh
+python3 tools/install-ontology-backend.py /path/to/wanx/packages/octop
+# 使用原来的进程管理方式重启 WANX；然后重启本客户端
+```
 
-<img src="https://img.alicdn.com/imgextra/i1/O1CN01MaBDFH1WWcGnQqMHy_!!6000000002796-0-tps-2592-1336.jpg" width="100%" />
+已有附件与记忆迁移功能对应 `patches/wanx-owned-chat-reference.patch`、`patches/wanx-private-memory-portable.patch`。记忆包导入需显式启用，默认关闭。
 
-### 成员协作
+## 配置与数据
 
-是时候邀请成员一起编写卓越的代码工程了，请点击左下角「成员」邀请你的小伙伴开始协作吧！
+`deployment.json` 中的 `bindings` 将用户数字 ID 绑定到其私人实例。`provisioning` 可为指定用户配置角色开通模板；具体字段见 [配置说明](docs/CONFIGURATION.md)。自动匹配知君、角色创建与局域网广播扩展的部署方式见 [连接与角色说明](docs/LAN-CONNECTION.md)。所有绑定与权限均由接口层和 WANX 校验，浏览器不能选择任意实例或所有者。
 
-### 更多
+本库不包含部署凭据、真实账号配置、会话、个人记忆、知识库内容、设备配对证书或构建安装包。运行数据保存在本地 `.runtime/` 与 WANX 数据目录。生产环境请使用受信任的 HTTPS。
 
-Git 使用教学、高级功能指引等更多说明，参见[Codeup帮助文档](https://help.aliyun.com/document_detail/153402.html)。
+## 验证
+
+```sh
+npm test
+npm run test:ui
+npm --prefix desktop test
+node --test remote-connect/tests/*.test.mjs
+npm run build
+# 在 WANX 的 Python 运行环境执行（先安装后端补丁）
+python3 tests/test_role_ontology.py
+```
+
+本体改动已通过接口、界面与后端单元/集成测试。测试中的模型处理器和记忆数据使用隔离夹具；这些测试不等同于真实模型的理解质量验收。真实记忆不会为了展示雷达而自动确认为本人观点。
+
+[本体设计](design/ontology-radar-20261010/设计说明.md) · [验收说明](docs/ONTOLOGY-ACCEPTANCE.md) · [Mock 验证](docs/MOCK-QA.md) · [第三方声明](THIRD_PARTY_NOTICES.md)
+
+私有工程，未授予公开再分发许可。内嵌第三方代码按对应声明保留授权。

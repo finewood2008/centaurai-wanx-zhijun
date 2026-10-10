@@ -1,18 +1,32 @@
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
-[Bb]in/
+node_modules/
+dist/
+deployment.json
+*.log
+.DS_Store
+deployment.before-*.json
 
-# Other files and folders
-.settings/
+.runtime/
 
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
-
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
+# Local data, screenshots, backups and derived delivery packages
+verification/
+delivery/
+desktop/renderer/
+desktop/server/
+desktop/release/
+desktop/resources/server-profile.json
+**/__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+*.pem
+*.key
+*.sqlite*
+*.db
+*.dmg
+*.exe
+*.zip
+*.tar.gz
+*.original.py
+remote-connect/bin/
+remote-connect/verification/
