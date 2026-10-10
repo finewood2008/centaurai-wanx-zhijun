@@ -9,6 +9,7 @@ export function ontologyRoute({path,method,body,url,aid}) {
   if(!Number.isInteger(offset)||offset<0||!Number.isInteger(limit)||limit<1||limit>100)fail(400,'INVALID_PAGE','页码不正确。');
   return {target:`${root}/facts?offset=${offset}&limit=${limit}`};
  }
+ if(method==='POST'&&suffix==='/prepare')return {target:root+suffix,payload:{retry:body.retry===true}};
  if(method==='POST'&&suffix==='/generate')return {target:root+suffix,payload:{revision:body.revision}};
  const node=suffix.match(/^\/nodes\/([\w-]+)$/);
  if(method==='POST'&&node){

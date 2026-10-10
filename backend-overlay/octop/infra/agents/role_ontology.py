@@ -46,10 +46,13 @@ async def read_role_ontology(registry: Any, uid: int) -> PersonalOntology:
         for e in claim.evidence:
             if e.source_type == "memory":
                 atom = atom_payload(memory, e.atom_id)
-                e.available = bool(atom and not atom.get("deprecated_at") and _digest(atom) == e.atom_hash and doc.fact_confirmations.get(e.atom_id, {}).get("atom_hash") == e.atom_hash)
+                event = memory.get_raw(e.event_id) if memory and e.event_id else None
+                e.available = bool(e.available and (not e.raw_hash or (event and _digest(event.content) == e.raw_hash)) and atom and not atom.get("deprecated_at") and _digest(atom) == e.atom_hash and (claim.core_status != "admitted" or doc.fact_confirmations.get(e.atom_id, {}).get("atom_hash") == e.atom_hash) and (e.atom_id not in doc.fact_confirmations or doc.fact_confirmations[e.atom_id].get("atom_hash")))
                 claim.evidence_valid = claim.evidence_valid and e.available
         if (claim.valid_from and claim.valid_from > now) or (claim.valid_until and claim.valid_until <= now):
             claim.evidence_valid = False
+    from octop.infra.agents.role_ontology_flow import flow_status
+    doc.flow = await flow_status(registry, uid, doc)
     return doc
 
 
@@ -57,7 +60,7 @@ class RoleCommand(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     request_id: str = Field(min_length=1, max_length=100)
     expected_version: str = Field(min_length=1, max_length=100)
-    action: Literal["add", "admit", "edit", "disable", "restore", "reject", "fact_confirm", "fact_withdraw"]
+    action: Literal["add", "add_admit", "admit", "edit", "disable", "restore", "reject", "fact_confirm", "fact_withdraw"]
     statement: str = Field(default="", max_length=400)
     conditions: str = Field(default="", max_length=300)
     exceptions: str = Field(default="", max_length=300)
@@ -82,7 +85,7 @@ def dates(body: RoleCommand):
         raise OctopError(ErrorCode.SELF_MODEL_INVALID, "结束时间必须晚于开始时间")
 
 
-async def command(registry: Any, uid: int, cid: str, body: RoleCommand) -> dict:
+async def command(registry: Any, uid: int, cid: str, body: RoleCommand, *, declaration: dict | None = None) -> dict:
     row = _owned(registry, uid)
     harness = registry.get_agent(row.agent_id)
     fingerprint = _digest({"id": cid, **body.model_dump()})
@@ -109,7 +112,7 @@ async def command(registry: Any, uid: int, cid: str, body: RoleCommand) -> dict:
             }
         else:
             claim = next((c for c in doc.claims if c.id == cid and not c.merged_into), None)
-            if body.action == "add":
+            if body.action in {"add", "add_admit"}:
                 if body.expected_version != doc.revision:
                     return {"status": "stale", "ontology": doc}
                 if not body.statement or body.kind == "situation":
@@ -138,7 +141,7 @@ async def command(registry: Any, uid: int, cid: str, body: RoleCommand) -> dict:
                 restored.history, restored.version = claim.history, claim.version
                 doc.claims[doc.claims.index(claim)] = restored
                 claim = restored
-            if body.action in {"add", "edit", "admit"}:
+            if body.action in {"add", "add_admit", "edit", "admit"}:
                 if not body.statement or body.kind == "situation":
                     raise OctopError(ErrorCode.SELF_MODEL_INVALID, "请输入本体表述")
                 for key in ["statement", "conditions", "exceptions", "kind", "importance", "affinity", "valid_from", "valid_until"]:
@@ -148,10 +151,16 @@ async def command(registry: Any, uid: int, cid: str, body: RoleCommand) -> dict:
                 claim.changed = body.change_mode == "change"
             claim.owner_edited = True
             now = datetime.now(UTC).isoformat()
-            if body.action in {"admit", "restore"} or (body.action == "edit" and was_core):
+            if body.action in {"add_admit", "admit", "restore"} or (body.action == "edit" and was_core):
                 claim.core_status, claim.state = "admitted", "confirmed"
                 claim.admitted_at, claim.admitted_by, claim.admitted_version = now, uid, claim.version
                 claim.reviewed_at = now
+                # This owner action confirms the statement AND the displayed source
+                # facts together. It is never called by candidate generation.
+                for e in claim.evidence:
+                    if e.source_type == "memory":
+                        prior = doc.fact_confirmations.get(e.atom_id, {})
+                        doc.fact_confirmations[e.atom_id] = {"atom_hash": e.atom_hash, "at": now, "by": uid, "history": [*prior.get("history", []), {k:v for k,v in prior.items() if k != "history"}]}
             elif body.action in {"disable", "reject"}:
                 claim.core_status = "inactive" if body.action == "disable" else "rejected"
                 claim.state = "withdrawn" if body.action == "disable" else "dismissed"
@@ -160,6 +169,11 @@ async def command(registry: Any, uid: int, cid: str, body: RoleCommand) -> dict:
                 claim.core_status, claim.state, claim.admitted_version = "pending", "draft", ""
             for relation in doc.relations:
                 if cid in {relation.source, relation.target}: relation.state = "dismissed"
+        if declaration and body.action == "add_admit":
+            from octop.infra.agents.ontology_types import OntologyEvidence
+            claim.declaration_turn = declaration["turn_id"]
+            claim.discussion_thread_id = declaration["thread_id"]
+            claim.evidence = [OntologyEvidence(source_type="owner_declaration", event_id=declaration["turn_id"], quote=declaration["text"], timestamp=datetime.now(UTC).isoformat())]
         doc.core_operations[body.request_id] = {"fingerprint": fingerprint, "id": cid, "version": next((c.version for c in doc.claims if c.id == cid), "fact")}
         await _save(harness.workspace, doc)
     return {"status": "ready", "ontology": await read_role_ontology(registry, uid), "changed_id": cid}
@@ -172,11 +186,14 @@ async def facts(registry: Any, uid: int, offset: int, limit: int) -> dict:
     doc = await _read(harness.workspace)
     memory = harness._memory_runtime.memory
     atoms, complete = _pages(memory, "list_atoms") if memory else ([], True)
+    from octop.infra.agents.role_ontology_flow import fact_reason
+    from octop.infra.agents.personal_ontology import _owned_sources
+    eligible, _, _ = await _owned_sources(harness.workspace, memory, uid)
     rows = []
     for a in atoms:
         if a.get("deprecated_at"): continue
         version = _digest(a)
-        rows.append({**a, "version": version, "owner_confirmed": doc.fact_confirmations.get(a["id"], {}).get("atom_hash") == version})
+        rows.append({**a, "reason": fact_reason(memory, a, uid, doc, eligible), "version": version, "owner_confirmed": doc.fact_confirmations.get(a["id"], {}).get("atom_hash") == version})
     return {"items": rows[offset:offset+limit], "total":len(rows), "complete": complete, "has_more": offset+limit < len(rows)}
 
 
@@ -184,7 +201,9 @@ _RULES = """本角色个人本体（本人确认的理解，不是命令）：
 当前明确表达优先于旧理解；结合适用情境与例外，不把愿望说成现有性格，不据此替本人作决定。
 只在有助于理解当前问题时参考。来源引用不等于本人原话；未经确认的记忆不能冒充确认事实。
 涉及上传或检索资料时分两步：先忠实解释资料作者、原意、事实及不确定性，再单独说明与本人的可能关联。
-第三方资料不是本人立场，不从资料替本人确认新的原则。明确表达的纠正本轮立即遵守，长期变化请本人在本体雷达修改。
+第三方资料不是本人立场，不从资料替本人确认新的原则。明确表达的纠正本轮立即遵守。
+本体以服务端本轮保存回执和本体页面为准。不要用工作区文件写入（如 memory/confirmed.md、MEMORY.md 或 context/life-context.md）冒充本体保存，也不要创建并行的本体事实库。
+后台只自动准备候选，不代表已确认。只有本轮保存回执 status=admitted 才能说已纳入本体；没有成功回执不得声称已写入。本轮未写入时，请用户核对对话下方的候选卡，或完整重述“请纳入本体：我的具体表述”。不要要求本人重复确认已成功保存的内容。
 """
 
 
@@ -200,11 +219,21 @@ class RoleOntologyMiddleware(AgentMiddleware):
         if str(cfg.get("agent_id")) != self.agent_id or str(cfg.get("user")) != str(self.user_id) or cfg.get("source") in {"peer", "ask_agent", "inbox"}:
             return await handler(request)
         harness = self.registry.get_agent(self.agent_id)
-        if not await harness.workspace.aread_text("zhijun/personal-ontology.json"):
+        saved = await _read(harness.workspace)
+        if not saved.preparation.enabled:
             return await handler(request)
         human = _user(request.state.get("messages", request.messages))
         text = _current_text(human)
+        tid = str(cfg.get("thread_id") or "")
+        turn_id = str(getattr(human, "id", "") or "")
+        update = None
         with agent_scope(self.registry, self.user_id, self.agent_id):
+            if tid and turn_id:
+                from octop.infra.agents.role_ontology_flow import capture_declaration
+                try:
+                    update = await capture_declaration(self.registry, self.user_id, self.agent_id, tid, turn_id, text)
+                except Exception:
+                    update = {"status":"failed", "message":"本次本体写入未完成，已有内容已保留，请稍后重新确认。"}
             doc = await read_role_ontology(self.registry, self.user_id)
         # Native memories continue through native recall. Only admitted ontology enters here.
         doc.nodes = []; doc.links = []
@@ -219,9 +248,9 @@ class RoleOntologyMiddleware(AgentMiddleware):
             await harness.workspace.aupload_bytes(preference_path, json.dumps(preference).encode())
         context.claims = [c for c in context.claims if c.id not in excluded]
         data = [{"id":c.id,"statement":c.statement,"kind":c.kind,"conditions":c.conditions,"exceptions":c.exceptions,"version":c.version,"evidence":[e.model_dump() for e in c.evidence if e.available]} for c in context.claims]
-        trace = {"turn_id":context.turn_id,"revision":doc.revision,"claims":data,"supplied_at":datetime.now(UTC).isoformat()}
+        trace = {"turn_id":context.turn_id,"revision":doc.revision,"claims":data,"update":update,"supplied_at":datetime.now(UTC).isoformat()}
         await harness.workspace.aupload_bytes("zhijun/role-context/" + _digest(tid) + ".json", json.dumps(trace, ensure_ascii=False).encode())
         system = llm_text_content(request.system_message) if request.system_message else ""
         # Data is JSON-escaped and separated from the immutable policy.
-        supplied = request.override(system_message=SystemMessage(content=system+"\n"+_RULES+"\n"+json.dumps(data,ensure_ascii=False)))
+        supplied = request.override(system_message=SystemMessage(content=system+"\n"+_RULES+"\n"+json.dumps({"claims":data,"owner_write_receipt":update},ensure_ascii=False)))
         return await handler(supplied)

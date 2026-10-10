@@ -2,6 +2,10 @@ import asyncio,json,site,unittest,os
 from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock,patch
 site.addsitedir(os.environ.get('WANX_PACKAGES',os.path.expanduser('~/.octop/portable/packages')))
+import octop.infra.agents
+from pathlib import Path
+if os.environ.get("WANX_INSTALLED") != "1":
+ octop.infra.agents.__path__ = [str(Path(__file__).resolve().parents[1]/"backend-overlay/octop/infra/agents"), *octop.infra.agents.__path__]
 from octop.infra.agents import role_ontology as r
 from octop.infra.agents.personal_ontology import _read,_owned,_digest,ontology_agent_scope
 from octop.infra.agents.ontology_types import OntologyClaim,PersonalOntology,OntologyEvidence
@@ -94,6 +98,8 @@ class Tests(unittest.IsolatedAsyncioTestCase):
  async def test_middleware_supplies_only_current_role_and_traces(self):
   from langchain_core.messages import HumanMessage,SystemMessage
   c=(await self.cmd('add'))['ontology'].claims[0];await self.cmd('admit',c.id)
+  from octop.infra.agents.personal_ontology import _save
+  workspace=self.registry.agents['personal'].workspace;doc=await _read(workspace);doc.preparation.enabled=True;await _save(workspace,doc)
   supplied=[]
   class Request:
    state={'messages':[HumanMessage(content='工作选择时怎么考虑诚信',id='turn')]}
