@@ -3,14 +3,16 @@ const path=require('node:path');
 const {startDesktopRuntime}=require('./runtime.cjs');
 
 // Preserve old user data; direct WANX uses its own state and cookie partition.
-app.setPath('userData',!app.isPackaged&&process.env.ZHIJUN_DESKTOP_USER_DATA?path.resolve(process.env.ZHIJUN_DESKTOP_USER_DATA):path.join(app.getPath('appData'),'ZhijunLAN'));
+const hostLaunch=process.env.WANX_HOST_LAUNCH_ID;
+const hostUserData=hostLaunch?path.join(app.getPath('appData'),`ZhijunWANX-${hostLaunch}`):null;
+app.setPath('userData',!app.isPackaged&&process.env.ZHIJUN_DESKTOP_USER_DATA?path.resolve(process.env.ZHIJUN_DESKTOP_USER_DATA):hostUserData||path.join(app.getPath('appData'),'ZhijunLAN'));
 let runtime,window;
 if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',()=>{if(window){if(window.isMinimized())window.restore();window.show();window.focus();}});
  app.whenReady().then(async()=>{
   runtime=await startDesktopRuntime({dataDir:path.join(app.getPath('userData'),'direct-wanx'),staticDir:path.join(__dirname,'../renderer'),safeStorage});
-  window=new BrowserWindow({width:1280,height:860,minWidth:820,minHeight:600,title:'知君',icon:path.join(__dirname,'../resources/icon.png'),backgroundColor:'#fffcf6',autoHideMenuBar:true,webPreferences:{partition:'persist:zhijun-direct-wanx',nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,devTools:!app.isPackaged}});
+  window=new BrowserWindow({width:1280,height:860,minWidth:820,minHeight:600,title:'知君',icon:path.join(__dirname,'../resources/icon.png'),backgroundColor:'#fffcf6',autoHideMenuBar:true,webPreferences:{partition:hostLaunch?`persist:zhijun-host-${hostLaunch}`:'persist:zhijun-direct-wanx',nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,devTools:!app.isPackaged}});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',(e,url)=>{if(new URL(url).origin!==runtime.origin)e.preventDefault();});
   window.webContents.session.setPermissionRequestHandler((_web,_permission,callback)=>callback(false));

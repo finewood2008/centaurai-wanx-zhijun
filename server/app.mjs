@@ -16,12 +16,12 @@ import { ClientError, fail, id, bindingFor, assertPrivateAgent, assertPrivateBas
 
 export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist'), sessionStore = null, roleStore = createRoleStore(), sessionCookieName = 'zhijun_session', allowAgentSelection = false, hostClient = null, hostContext = null} = {}) {
   const config = validateConfig(rawConfig), sessions = new Map();
-  let hostSession = hostClient && hostContext?.user?.id ? {sid:'wanx-host',token:'',user:hostContext.user,expires:Number.MAX_SAFE_INTEGER,sockets:new Set(),qr:null,qrBusy:false,sourceExpertId:null,agentId:null} : null;
+  let hostSession = hostClient && hostContext?.user?.id ? {sid:'wanx-host',token:randomBytes(32).toString('hex'),user:hostContext.user,expires:Number.MAX_SAFE_INTEGER,sockets:new Set(),qr:null,qrBusy:false,sourceExpertId:null,agentId:null} : null;
   for(const s of sessionStore?.load()||[])sessions.set(s.sid,{...s,sockets:new Set(),qr:null,qrBusy:false});
   const saveSessions=()=>sessionStore?.save(sessions);
   if(!/^[A-Za-z0-9_]{1,64}$/.test(sessionCookieName))throw new Error('Invalid session cookie name');
   const cookieName = sessionCookieName;
-  function drop(s) { for (const ws of s.sockets) ws.close(4001, '会话已结束'); sessions.delete(s.sid); saveSessions(); }
+  function drop(s) { if (hostClient && hostSession === s) hostSession = null; for (const ws of s.sockets) ws.close(4001, '会话已结束'); sessions.delete(s.sid); saveSessions(); }
   async function upstream(path, session, method='GET', body, contentType='application/json', responseFormat='json') {
     let r;
     try {
@@ -131,10 +131,14 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
         if (method !== 'GET' && !sameOrigin(req)) fail(403,'ORIGIN_REQUIRED','请求来源无效，请刷新页面。');
         const body = method==='GET' ? {} : await readBody(req);
         if(path==='/api/status' && method==='GET') {
-          let connected=false; try {await upstream('/auth/captcha'); connected=true;} catch{}
-          return json(res,{connected,version,provisioned:Object.keys(config.bindings).length>0});
+          let connected=false;
+          try { await upstream(hostClient ? '/auth/me' : '/auth/captcha', hostSession); connected=true; } catch{}
+          return json(res,{connected,version,provisioned:hostClient || Object.keys(config.bindings).length>0,host:Boolean(hostClient)});
         }
-        if(path==='/api/captcha' && method==='GET') return json(res,await upstream('/auth/captcha'));
+        if(hostClient && ['/api/login','/api/logout','/api/password'].includes(path)) fail(409,'HOST_MANAGED','请在万象中管理账号，连接盒子后重新打开知君。');
+        if(path==='/api/connection' && hostClient) return json(res,{scope:'wanx-host',selected:true,boxId:hostContext.boxId,name:'万象已连接盒子'});
+        if(hostClient && ['/api/connection/search','/api/connection/select'].includes(path)) fail(409,'HOST_MANAGED','请在万象中切换盒子后重新打开知君。');
+        if(path==='/api/captcha' && method==='GET') return json(res,hostClient?{provider:'wanx-host'}:await upstream('/auth/captcha'));
         if(path==='/api/login' && method==='POST') {
           const result=await upstream('/auth/login',null,'POST',{username:String(body.username||''),password:String(body.password||''),...(body.captcha_token?{captcha_token:String(body.captcha_token)}:{})});
           const sid=randomBytes(32).toString('hex'), ttl=Math.min(Number(result.expires_in)||3600,28800);
@@ -223,7 +227,6 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
             : await fetcher(`${config.upstream}/api${root}/chat/hitl/resume`,{method:'POST',headers:{Authorization:`Bearer ${s.token}`,'Content-Type':'application/json'},body:JSON.stringify({thread_id:id(body.thread_id),decisions}),signal:AbortSignal.timeout(300000)});
           if(!r.ok) fail(r.status,'APPROVAL_FAILED','暂时无法提交确认。');
           res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store'});
-          if (hostClient) return res.end(Buffer.from(await r.arrayBuffer()));
           for await(const chunk of r.body) { if(!res.destroyed) res.write(chunk); } return res.end();
         }
         if(path==='/api/memory' && method==='POST') return json(res,await upstream(`${root}/memory/atoms/list`,s,'POST',{query:String(body.query||''),limit:40,offset:Math.max(0,Number(body.offset)||0),include_deprecated:false}));
@@ -302,10 +305,12 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
           client.close(1011,'对话连接已中断');
           return;
         }
+        if (client.readyState !== WebSocket.OPEN) { remote.close(); s.sockets.delete(client); return; }
         const expireDelay=Math.min(0x7fffffff,Math.max(1,s.expires-Date.now()));
-        const expire=setTimeout(()=>client.close(4001,'请重新登录'),expireDelay);
+        const expire=hostClient?null:setTimeout(()=>client.close(4001,'请重新登录'),expireDelay);
         const send=data=>{if(client.readyState===WebSocket.OPEN) client.send(JSON.stringify(data));};
-        remote.on('open',()=>send({type:'ready'}));
+        if (remote.readyState === WebSocket.OPEN) send({type:'ready'});
+        else remote.once('open',()=>send({type:'ready'}));
         remote.on('message',raw=>{try{const f=JSON.parse(raw.toString());if(f.type==='error') f.message='对话暂时未能完成，请查看记录后再试。';send(f);}catch{send({type:'error',message:'回复格式异常。'});}});
         remote.on('error',()=>{send({type:'error',message:'对话连接已中断，请重新打开这段对话。'});client.close(1011);});
         remote.on('close',()=>client.close(1000));
@@ -327,7 +332,7 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
     }catch{socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');}
   });
   const cleanup=setInterval(()=>{for(const s of sessions.values())if(Date.now()>=s.expires)drop(s);},60000);cleanup.unref();
-  server.on('close',()=>{clearInterval(cleanup);saveSessions();for(const s of sessions.values())for(const ws of s.sockets)ws.close(1012,'服务正在重启');wss.close();});
+  server.on('close',()=>{clearInterval(cleanup);saveSessions();if(hostSession)drop(hostSession);for(const s of sessions.values())for(const ws of s.sockets)ws.close(1012,'服务正在重启');wss.close();});
   server.revokeSession=req=>{try{drop(getSession(req));}catch{}};
   return server;
 }
