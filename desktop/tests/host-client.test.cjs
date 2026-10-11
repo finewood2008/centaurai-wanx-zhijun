@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const net = require('node:net');
+const {once} = require('node:events');
 const {createHostClient} = require('../shell/host-client.cjs');
 
 test('host client sends fixed application identity and decodes host response', async () => {
@@ -17,6 +18,43 @@ test('host client sends fixed application identity and decodes host response', a
   const address = server.address();
   const client = createHostClient({socketPath: address, token: 'secret', applicationId: 'centaurai.wanx.zhijun', launchId: 'launch-1'});
   assert.deepEqual(await client.context(), {boxId: 'box-1'});
+  client.close();
+  await new Promise(resolve => server.close(resolve));
+});
+
+test('host client keeps a fixed IPC stream for chat frames', async () => {
+  const server = net.createServer(socket => {
+    socket.setEncoding('utf8');
+    let buffer = '';
+    socket.on('data', data => {
+      buffer += data;
+      while (true) {
+        const index = buffer.indexOf('\n');
+        if (index < 0) break;
+        const request = JSON.parse(buffer.slice(0, index));
+        buffer = buffer.slice(index + 1);
+        assert.equal(request.applicationId, 'centaurai.wanx.zhijun');
+        assert.equal(request.launchId, 'launch-1');
+        if (request.method === 'stream.open') {
+          socket.write(JSON.stringify({id: request.id, ok: true, value: {streamId: 'stream-1'}}) + '\n');
+          socket.write(JSON.stringify({type: 'stream.message', streamId: 'stream-1', data: Buffer.from('hello').toString('base64'), binary: false}) + '\n');
+        } else if (request.method === 'stream.send') {
+          assert.equal(Buffer.from(request.params.data, 'base64').toString(), 'pong');
+          socket.write(JSON.stringify({id: request.id, ok: true, value: {sent: true}}) + '\n');
+        } else if (request.method === 'stream.close') {
+          socket.end();
+        }
+      }
+    });
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  const client = createHostClient({socketPath: address, token: 'secret', applicationId: 'centaurai.wanx.zhijun', launchId: 'launch-1'});
+  const stream = await client.openStream('/api/agents/a/chat/ws');
+  const [message] = await once(stream, 'message');
+  assert.equal(message.toString(), 'hello');
+  stream.send('pong');
+  stream.close();
   client.close();
   await new Promise(resolve => server.close(resolve));
 });

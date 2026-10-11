@@ -25,9 +25,25 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
   async function upstream(path, session, method='GET', body, contentType='application/json', responseFormat='json') {
     let r;
     try {
-      r = hostClient
-        ? await hostClient.request(`/api${path}`, {method, body, headers:{Accept:'application/json','Accept-Language':'zh-CN', ...(body !== undefined && !(body instanceof FormData) ? {'Content-Type':contentType}: {})}})
-        : await fetcher(`${config.upstream.replace(/\/$/,'')}/api${path}`, {method, headers:{Accept:'application/json','Accept-Language':'zh-CN',...(session ? {Authorization:`Bearer ${session.token}`} : {}), ...(body !== undefined && !(body instanceof FormData) ? {'Content-Type':contentType}: {})}, body: body === undefined ? undefined : Buffer.isBuffer(body) || body instanceof FormData ? body : JSON.stringify(body), signal:AbortSignal.timeout(55000), redirect:'error'});
+      if (hostClient) {
+        let outgoingBody = body, outgoingContentType = contentType;
+        if (body instanceof FormData) {
+          const encoded = new Response(body);
+          outgoingBody = Buffer.from(await encoded.arrayBuffer());
+          outgoingContentType = encoded.headers.get('content-type') || contentType;
+        }
+        r = await hostClient.request(`/api${path}`, {
+          method,
+          body: outgoingBody,
+          headers: {
+            Accept:'application/json',
+            'Accept-Language':'zh-CN',
+            ...(outgoingBody !== undefined ? {'Content-Type':outgoingContentType} : {}),
+          },
+        });
+      } else {
+        r = await fetcher(`${config.upstream.replace(/\/$/,'')}/api${path}`, {method, headers:{Accept:'application/json','Accept-Language':'zh-CN',...(session ? {Authorization:`Bearer ${session.token}`} : {}), ...(body !== undefined && !(body instanceof FormData) ? {'Content-Type':contentType}: {})}, body: body === undefined ? undefined : Buffer.isBuffer(body) || body instanceof FormData ? body : JSON.stringify(body), signal:AbortSignal.timeout(55000), redirect:'error'});
+      }
     }
     catch { fail(502,'SERVICE_UNAVAILABLE','暂时连接不上知君服务，请检查网络后重试。'); }
     if (!r.ok) {
@@ -202,9 +218,12 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
           const decisions=body.decisions;
           if(!Array.isArray(decisions)||!decisions.length||decisions.length>16||decisions.some(d=>!['approve','reject','respond'].includes(d.type))) fail(400,'INVALID_DECISION','确认内容无效。');
           // The native service executes and persists the resumed turn. SSE reaches the client unchanged.
-          const r=await fetcher(`${config.upstream}/api${root}/chat/hitl/resume`,{method:'POST',headers:{Authorization:`Bearer ${s.token}`,'Content-Type':'application/json'},body:JSON.stringify({thread_id:id(body.thread_id),decisions}),signal:AbortSignal.timeout(300000)});
+          const r=hostClient
+            ? await hostClient.request(`/api${root}/chat/hitl/resume`,{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},body:{thread_id:id(body.thread_id),decisions}})
+            : await fetcher(`${config.upstream}/api${root}/chat/hitl/resume`,{method:'POST',headers:{Authorization:`Bearer ${s.token}`,'Content-Type':'application/json'},body:JSON.stringify({thread_id:id(body.thread_id),decisions}),signal:AbortSignal.timeout(300000)});
           if(!r.ok) fail(r.status,'APPROVAL_FAILED','暂时无法提交确认。');
           res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store'});
+          if (hostClient) return res.end(Buffer.from(await r.arrayBuffer()));
           for await(const chunk of r.body) { if(!res.destroyed) res.write(chunk); } return res.end();
         }
         if(path==='/api/memory' && method==='POST') return json(res,await upstream(`${root}/memory/atoms/list`,s,'POST',{query:String(body.query||''),limit:40,offset:Math.max(0,Number(body.offset)||0),include_deprecated:false}));
@@ -271,11 +290,20 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
       if(chatUrl.pathname!=='/api/chat'||!sameOrigin(req)||req.headers.host!==new URL(config.publicOrigin).host) fail(403,'ORIGIN','');
       const s=getSession(req);if(allowAgentSelection&&!s.sourceExpertId)fail(409,'EXPERT_REQUIRED','请先完成知君连接。');assertExpertScope(s,chatUrl.searchParams.get('expert'));
       const role=rolesFor(s).resolve(s.user,chatUrl.searchParams.get('role')||'personal'),aid=await privateAgent(s,role.id);
-      wss.handleUpgrade(req,socket,head,client=>{
+      wss.handleUpgrade(req,socket,head,async client=>{
         s.sockets.add(client);
-        const u=new URL(`/api/agents/${aid}/chat/ws`,config.upstream);u.protocol=u.protocol==='https:'?'wss:':'ws:';u.searchParams.set('token',s.token);
-        const remote=new WebSocket(u,{maxPayload:4*1024*1024,handshakeTimeout:15000});
-        const expire=setTimeout(()=>client.close(4001,'请重新登录'),Math.max(1,s.expires-Date.now()));
+        let remote;
+        try {
+          remote=hostClient
+            ? await hostClient.openStream(`/api/agents/${aid}/chat/ws`)
+            : (()=>{const u=new URL(`/api/agents/${aid}/chat/ws`,config.upstream);u.protocol=u.protocol==='https:'?'wss:':'ws:';u.searchParams.set('token',s.token);return new WebSocket(u,{maxPayload:4*1024*1024,handshakeTimeout:15000});})();
+        } catch {
+          s.sockets.delete(client);
+          client.close(1011,'对话连接已中断');
+          return;
+        }
+        const expireDelay=Math.min(0x7fffffff,Math.max(1,s.expires-Date.now()));
+        const expire=setTimeout(()=>client.close(4001,'请重新登录'),expireDelay);
         const send=data=>{if(client.readyState===WebSocket.OPEN) client.send(JSON.stringify(data));};
         remote.on('open',()=>send({type:'ready'}));
         remote.on('message',raw=>{try{const f=JSON.parse(raw.toString());if(f.type==='error') f.message='对话暂时未能完成，请查看记录后再试。';send(f);}catch{send({type:'error',message:'回复格式异常。'});}});
