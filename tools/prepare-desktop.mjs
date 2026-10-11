@@ -9,4 +9,5 @@ await rm(server,{recursive:true,force:true});await mkdir(server,{recursive:true}
 for(const name of await readdir(new URL('server/',root))){
  if(name.endsWith('.mjs')&&!['index.mjs','desktop-service.mjs'].includes(name))await cp(new URL('server/'+name,root),new URL('desktop/server/'+name,root));
 }
+await cp(new URL('application.manifest.json',root),new URL('desktop/application.manifest.json',root));
 console.log('Prepared the current login UI and direct WANX runtime; no legacy pairing assets are included.');

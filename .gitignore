@@ -12,6 +12,7 @@ verification/
 delivery/
 desktop/renderer/
 desktop/server/
+!desktop/application.manifest.json
 desktop/release/
 desktop/resources/server-profile.json
 **/__pycache__/

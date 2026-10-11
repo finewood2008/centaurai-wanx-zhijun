@@ -28,13 +28,15 @@
     },
     "files": [
       "shell/main.cjs",
+      "shell/host-client.cjs",
       "shell/runtime.cjs",
       "shell/session-store.cjs",
       "server/**",
       "renderer/**",
       "package.json",
       "THIRD_PARTY_NOTICES.md",
-      "resources/icon.*"
+      "resources/icon.*",
+      "application.manifest.json"
     ],
     "asar": true,
     "win": {

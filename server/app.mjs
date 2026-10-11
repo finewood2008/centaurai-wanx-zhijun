@@ -14,8 +14,9 @@ import {serveStatic} from './static.mjs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { ClientError, fail, id, bindingFor, assertPrivateAgent, assertPrivateBase, chatFrame, projectThread, projectHistory, validateConfig } from './policy.mjs';
 
-export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist'), sessionStore = null, roleStore = createRoleStore(), sessionCookieName = 'zhijun_session', allowAgentSelection = false} = {}) {
+export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist'), sessionStore = null, roleStore = createRoleStore(), sessionCookieName = 'zhijun_session', allowAgentSelection = false, hostClient = null, hostContext = null} = {}) {
   const config = validateConfig(rawConfig), sessions = new Map();
+  let hostSession = hostClient && hostContext?.user?.id ? {sid:'wanx-host',token:'',user:hostContext.user,expires:Number.MAX_SAFE_INTEGER,sockets:new Set(),qr:null,qrBusy:false,sourceExpertId:null,agentId:null} : null;
   for(const s of sessionStore?.load()||[])sessions.set(s.sid,{...s,sockets:new Set(),qr:null,qrBusy:false});
   const saveSessions=()=>sessionStore?.save(sessions);
   if(!/^[A-Za-z0-9_]{1,64}$/.test(sessionCookieName))throw new Error('Invalid session cookie name');
@@ -23,7 +24,11 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
   function drop(s) { for (const ws of s.sockets) ws.close(4001, '会话已结束'); sessions.delete(s.sid); saveSessions(); }
   async function upstream(path, session, method='GET', body, contentType='application/json', responseFormat='json') {
     let r;
-    try { r = await fetcher(`${config.upstream.replace(/\/$/,'')}/api${path}`, {method, headers:{Accept:'application/json','Accept-Language':'zh-CN',...(session ? {Authorization:`Bearer ${session.token}`} : {}), ...(body !== undefined && !(body instanceof FormData) ? {'Content-Type':contentType}: {})}, body: body === undefined ? undefined : Buffer.isBuffer(body) || body instanceof FormData ? body : JSON.stringify(body), signal:AbortSignal.timeout(55000), redirect:'error'}); }
+    try {
+      r = hostClient
+        ? await hostClient.request(`/api${path}`, {method, body, headers:{Accept:'application/json','Accept-Language':'zh-CN', ...(body !== undefined && !(body instanceof FormData) ? {'Content-Type':contentType}: {})}})
+        : await fetcher(`${config.upstream.replace(/\/$/,'')}/api${path}`, {method, headers:{Accept:'application/json','Accept-Language':'zh-CN',...(session ? {Authorization:`Bearer ${session.token}`} : {}), ...(body !== undefined && !(body instanceof FormData) ? {'Content-Type':contentType}: {})}, body: body === undefined ? undefined : Buffer.isBuffer(body) || body instanceof FormData ? body : JSON.stringify(body), signal:AbortSignal.timeout(55000), redirect:'error'});
+    }
     catch { fail(502,'SERVICE_UNAVAILABLE','暂时连接不上知君服务，请检查网络后重试。'); }
     if (!r.ok) {
       if (r.status === 401 && session) drop(session);
@@ -34,6 +39,10 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
   }
   const provision = createProvisioner(config, upstream);
   function getSession(req) {
+    if (hostClient) {
+      if (!hostSession) fail(401,'LOGIN_REQUIRED','万象应用会话未就绪。');
+      return hostSession;
+    }
     const sid = String(req.headers.cookie || '').split(';').map(x=>x.trim()).find(x=>x.startsWith(`${cookieName}=`))?.slice(cookieName.length+1);
     const s = sessions.get(sid);
     if (!s || Date.now() >= s.expires) { if(s) drop(s); fail(401,'LOGIN_REQUIRED','请先登录知君。'); }
@@ -58,7 +67,9 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
   function selectExpert(s,selection) {
     for(const ws of s.sockets)ws.close(4002,'已切换知君专家');
     const next={...s,...selection,sockets:new Set(),qr:null,qrBusy:false};
-    sessions.set(s.sid,next);saveSessions();return next;
+    if (hostClient) hostSession = next;
+    else { sessions.set(s.sid,next); saveSessions(); }
+    return next;
   }
   const expertId = s => s.agentId || config.bindings[String(s.user.id)]?.agentId || null;
   function rolesFor(s) {
