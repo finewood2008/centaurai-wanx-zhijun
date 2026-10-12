@@ -1,6 +1,6 @@
 {
   "name": "zhijun-lan-test",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "type": "module",
   "main": "desktop/shell/main.cjs",
@@ -12,6 +12,7 @@
     "test:ui": "vitest run"
   },
   "dependencies": {
+    "@centaurai/wanx-host-sdk": "file:desktop/vendor/centaurai-wanx-host-sdk-0.1.0.tgz",
     "antd": "^5.29.3",
     "bonjour-service": "^1.4.4",
     "dayjs": "^1.11.23",

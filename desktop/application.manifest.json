@@ -2,7 +2,7 @@
   "applicationId": "centaurai.wanx.zhijun",
   "name": "知君",
   "description": "知君私人空间 WANX Electron 应用",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "protocolVersion": 1,
   "runtime": "electron",
   "entrypoint": "shell/main.cjs",
