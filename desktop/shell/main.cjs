@@ -1,6 +1,7 @@
 const {app,BrowserWindow,Menu,safeStorage}=require('electron');
 const path=require('node:path');
 const {startDesktopRuntime}=require('./runtime.cjs');
+const icon=path.join(__dirname,'../resources/icon.png');
 
 // Preserve old user data; direct WANX uses its own state and cookie partition.
 const hostLaunch=process.env.WANX_HOST_LAUNCH_ID;
@@ -11,8 +12,9 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',()=>{if(window){if(window.isMinimized())window.restore();window.show();window.focus();}});
  app.whenReady().then(async()=>{
+  app.dock?.setIcon(icon);
   runtime=await startDesktopRuntime({dataDir:path.join(app.getPath('userData'),'direct-wanx'),staticDir:path.join(__dirname,'../renderer'),safeStorage});
-  window=new BrowserWindow({width:1280,height:860,minWidth:820,minHeight:600,title:'知君',icon:path.join(__dirname,'../resources/icon.png'),backgroundColor:'#fffcf6',autoHideMenuBar:true,webPreferences:{partition:hostLaunch?`persist:zhijun-host-${hostLaunch}`:'persist:zhijun-direct-wanx',nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,devTools:!app.isPackaged}});
+  window=new BrowserWindow({width:1280,height:860,minWidth:820,minHeight:600,title:'知君',icon,backgroundColor:'#fffcf6',autoHideMenuBar:true,webPreferences:{partition:hostLaunch?`persist:zhijun-host-${hostLaunch}`:'persist:zhijun-direct-wanx',nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,devTools:!app.isPackaged}});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',(e,url)=>{if(new URL(url).origin!==runtime.origin)e.preventDefault();});
   window.webContents.session.setPermissionRequestHandler((_web,_permission,callback)=>callback(false));
