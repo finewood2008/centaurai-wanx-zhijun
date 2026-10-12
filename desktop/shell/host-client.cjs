@@ -120,7 +120,6 @@ function createHostClient({socketPath, token, applicationId, launchId, timeoutMs
       if (readyState !== 3) { readyState = 3; emitter.emit('close', 1006, Buffer.alloc(0)); }
     });
     const opened = await transport.reply;
-    transport.activate();
     streamId = opened.streamId;
     if (!streamId) { transport.socket.destroy(); throw fail('HOST_STREAM_INVALID'); }
     readyState = 1;
@@ -129,6 +128,8 @@ function createHostClient({socketPath, token, applicationId, launchId, timeoutMs
       transport.send('stream.send', {streamId, data: Buffer.from(data).toString('base64'), binary: Boolean(options.binary)});
     };
     emitter.close = () => { if (readyState === 3) return; readyState = 2; transport.socket.destroy(); };
+    // The caller installs message handlers only after awaiting openStream().
+    setImmediate(transport.activate);
     return emitter;
   }
   return Object.freeze({context, request, openStream, close() { closed = true; for (const socket of sockets) socket.destroy(); }});
