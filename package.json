@@ -3,6 +3,7 @@
   "version": "0.4.3",
   "private": true,
   "type": "module",
+  "main": "desktop/shell/main.cjs",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",

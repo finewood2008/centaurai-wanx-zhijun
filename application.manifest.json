@@ -5,7 +5,7 @@
   "version": "0.4.3",
   "protocolVersion": 1,
   "runtime": "electron",
-  "entrypoint": "shell/main.cjs",
+  "entrypoint": "desktop/shell/main.cjs",
   "capabilities": [
     "identity.read",
     "experts.read",
