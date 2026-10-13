@@ -16,7 +16,7 @@ vi.mock('./captcha/CaptchaField',()=>({default:forwardRef(function TestCaptcha({
 })}));
 const mocked=vi.mocked(api);
 const user={id:8,name:'测试者',ready:true,reason:'',roles:[{id:'personal',name:'个人',description:'生活中的我'}]};
-beforeEach(()=>{vi.resetAllMocks();localStorage.clear();setActiveRole('personal',true);mocked.mockImplementation(async path=>path==='/me'?user:path==='/threads'?[]:path==='/captcha'?{provider:'slider'}:{connected:true});});
+beforeEach(()=>{vi.resetAllMocks();localStorage.clear();window.history.replaceState({},'', '/');setActiveRole('personal',true);mocked.mockImplementation(async path=>path==='/me'?user:path==='/threads'?[]:path==='/captcha'?{provider:'slider'}:{connected:true});});
 
 it('only asks about experts when there are multiple, then enters the chosen space',async()=>{
  let selected=false;
@@ -135,4 +135,58 @@ it('logs in without the local slider and permits retry after a wrong password',a
   fireEvent.click(screen.getByRole('button',{name:'进入知君'}));expect(await screen.findByRole('alert')).toHaveTextContent('账号或密码有误');expect(screen.getByRole('button',{name:'进入知君'})).toBeEnabled();
   reject=false;fireEvent.click(screen.getByRole('button',{name:'进入知君'}));await waitFor(()=>expect(success).toHaveBeenCalledOnce());
   expect(mocked).toHaveBeenCalledWith('/login','POST',{username:'test',password:'password',captcha_token:undefined});
+});
+
+
+it('inherits the WANX identity and makes managed account settings read only',async()=>{
+ mocked.mockImplementation(async path=>path==='/me'?{...user,managedHost:true}:path==='/threads'?[]:{connected:true,managedHost:true});
+ render(<App/>);
+ fireEvent.click(await screen.findByRole('button',{name:'测试者，私人空间与设置'}));
+ expect(screen.getByText('正在使用万象账户。称呼、密码与登录状态请在万象中管理。')).toBeVisible();
+ expect(screen.queryByLabelText('怎么称呼你')).not.toBeInTheDocument();
+ expect(screen.queryByLabelText('当前密码')).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'退出登录'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'连接服务，搜索或切换 万象WANX'})).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:'阅读偏好'}));
+ expect(screen.getByRole('group',{name:'对话字号'})).toBeVisible();
+});
+
+it('clears private managed content on host revocation and never offers standalone login',async()=>{
+ mocked.mockImplementation(async path=>path==='/me'?{...user,managedHost:true}:path==='/threads'?[]:{connected:true,managedHost:true});
+ render(<App/>);
+ await screen.findByRole('button',{name:'测试者，私人空间与设置'});
+ act(()=>window.dispatchEvent(new Event('session-expired')));
+ expect(await screen.findByRole('heading',{name:'请从万象重新打开知君。'})).toBeVisible();
+ expect(screen.queryByRole('button',{name:'测试者，私人空间与设置'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('form',{name:'登录知君'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'连接服务，搜索或切换 万象WANX'})).not.toBeInTheDocument();
+ const close=vi.spyOn(window,'close').mockImplementation(()=>{});
+ fireEvent.click(screen.getByRole('button',{name:'关闭知君'}));
+ expect(close).toHaveBeenCalledOnce();close.mockRestore();
+ expect(mocked.mock.calls.some(([path])=>['/logout','/login','/captcha','/connection'].includes(path))).toBe(false);
+});
+
+it('fails closed if a managed launch cannot reach either bootstrap API',async()=>{
+ window.history.replaceState({},'', '/?managedHost=1');
+ mocked.mockRejectedValue(new Error('Host unavailable'));
+ render(<App/>);
+ expect(await screen.findByRole('heading',{name:'请从万象重新打开知君。'})).toBeVisible();
+ expect(screen.queryByRole('form',{name:'登录知君'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'连接服务，搜索或切换 万象WANX'})).not.toBeInTheDocument();
+ expect(mocked.mock.calls.some(([path])=>['/login','/captcha','/connection'].includes(path))).toBe(false);
+});
+
+it('retains managed expert selection without independent logout',async()=>{
+ let selected=false;
+ mocked.mockImplementation(async(path,method)=>{
+  if(path==='/me')return selected?{...user,managedHost:true,expertId:'second'}:{...user,managedHost:true,ready:false,roles:[],expertChoices:[{id:'first',name:'知君'},{id:'second',name:'知君 · 人生上下文'}]};
+  if(path==='/connection/agents'&&method==='POST'){selected=true;return {ok:true};}
+  return path==='/threads'?[]:{connected:true,managedHost:true};
+ });
+ render(<App/>);
+ expect(await screen.findByRole('dialog',{name:'想连接哪一位知君？'})).toBeVisible();
+ expect(screen.queryByRole('button',{name:'退出登录'})).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:/知君 · 人生上下文/}));
+ expect(await screen.findByRole('button',{name:'测试者，私人空间与设置'})).toBeVisible();
+ expect(mocked).toHaveBeenCalledWith('/connection/agents','POST',{agentId:'second'});
 });

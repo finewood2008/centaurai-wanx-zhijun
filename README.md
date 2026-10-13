@@ -36,6 +36,26 @@ npm start
 
 开发入口 `npm run dev` 使用 28731；API 服务使用 `ZHIJUN_PUBLIC_ORIGIN=http://127.0.0.1:28731 npm start`，Vite 代理 HTTP 与 WebSocket。
 
+## 万象应用市场包
+
+市场版使用万象底座的 Electron、用户身份和设备连接，不需要独立登录或填写服务地址。先在万象登录并连接盒子，再从应用市场打开知君。
+
+在本仓库执行以下命令即可构建前端、准备运行目录并生成签名的应用包，不再需要手动创建 `/build/zhijun`：
+
+```sh
+npm ci
+npm run package:market -- \
+  --out ./delivery/market/universal \
+  --key "$HOME/.config/wanx-release/release-private.pem" \
+  --key-id release-2026
+```
+
+默认使用同级 `centuarai-wanx/wanx-client` 的打包工具（该目录需先安装 npm 依赖），不同位置可加 `--wanx-client /实际路径/wanx-client`。输出 `.wanxapp` 和配套 `.wanxapp.release.json`，两者一起用于市场发布；私钥不会进入包内。签名公钥必须同时配置到市场服务和万象客户端。已有输出不会覆盖，请为新构建选择新目录或递增版本。
+
+知君市场包默认使用 `universal/universal`，同一个 `.wanxapp` 可供 Windows、Intel Mac 和 Apple 芯片 Mac 的万象使用。包内是前端资源和 JavaScript 服务，共享万象 Electron，不携带原生运行时，也不按构建电脑的平台绑定。万象底座的 `.dmg` / `.exe` 安装包仍区分平台和架构；市场版入口为 `market/main.mjs`，与独立桌面入口分开。各目标系统仍需完成运行验证。
+
+旧的带平台签名包不会自动变成通用包。发布通用版时应递增版本并同步 `package.json` 与 `market/wanx-app.json`，重新生成 `.wanxapp` 和 `.release.json`，在支持通用包的市场后台上传并发布。不要手动修改已有签名描述。打包工具仍兼容显式 `--os macos|windows --arch x64|arm64`，仅供确实依赖平台的应用使用。
+
 ## WANX 后端
 
 本体的权威记录存放在每个私人实例的 WANX 工作区，原生记忆继续作为来源。`backend-overlay/` 是配套后端源码，必须与客户端一起部署；仅更新前端不会启用本体 API。

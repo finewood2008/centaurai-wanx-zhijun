@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {ArrowRight} from 'lucide-react';
 
-export function ExpertChoice({choices,onSelect,onLogout}:{choices:{id:string;name:string}[];onSelect:(id:string)=>Promise<void>;onLogout:()=>void}) {
+export function ExpertChoice({choices,onSelect,onLogout}:{choices:{id:string;name:string}[];onSelect:(id:string)=>Promise<void>;onLogout?:()=>void}) {
  const dialog=useRef<HTMLElement>(null),[busy,setBusy]=useState(''),[error,setError]=useState('');
  useEffect(()=>{dialog.current?.focus()},[]);
  return <div className="modal-backdrop"><section className="modal expert-choice-dialog" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="expert-choice-title" tabIndex={-1} onKeyDown={e=>{
@@ -16,6 +16,6 @@ export function ExpertChoice({choices,onSelect,onLogout}:{choices:{id:string;nam
    <span><strong>{choice.name}</strong><small>专家 ID · {choice.id}</small></span>{busy===choice.id?<small role="status">正在连接…</small>:<ArrowRight size={17}/>}
   </button>)}</div>
   {error&&<p className="notice" role="alert">{error}</p>}
-  <button className="expert-choice-exit" disabled={!!busy} onClick={onLogout}>退出登录</button>
+  {onLogout&&<button className="expert-choice-exit" disabled={!!busy} onClick={onLogout}>退出登录</button>}
  </section></div>
 }

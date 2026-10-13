@@ -1,0 +1,15 @@
+{
+  "applicationId": "centaurai.wanx.zhijun",
+  "name": "知君",
+  "version": "0.4.4",
+  "protocolVersion": 1,
+  "runtime": "electron",
+  "launchMode": "shared",
+  "entrypoint": "market/main.mjs",
+  "capabilities": [
+    "identity.read",
+    "http.request",
+    "chat.stream"
+  ],
+  "description": "运行于万象底座的知君私人空间，共享万象的账号、设备与网络连接。"
+}
