@@ -10,6 +10,14 @@ button:focus-visible { outline-offset:3px; }
 .sidebar nav { flex-shrink:0; }
 .sidebar .history-heading { margin-top:25px; }
 .sidebar .history-list { scrollbar-width:thin; scrollbar-color:#d3c9b9 transparent; min-height:0; padding-bottom:12px; }
+.sidebar .history-list>button { display:flex; align-items:center; gap:8px; }
+.history-title { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.history-source { flex:0 0 auto; padding:1px 5px; border:1px solid #ddd8d0; border-radius:4px; background:#f0ede8; color:#756e64; font-size:10px; line-height:1.5; }
+.history-source[data-source="网页"] { background:#eaf0f6; border-color:#d6e1ec; color:#526e88; }
+.history-source[data-source="微信"] { background:#eaf2e7; border-color:#d7e4d2; color:#58774d; }
+.history-source[data-source="命令行"] { background:#efebf5; border-color:#e0d8ec; color:#76608f; }
+.history-source[data-source="定时任务"] { background:#f6efdf; border-color:#eadebf; color:#886f39; }
+.history-source[data-source="即时通讯"] { background:#f5e9ee; border-color:#ead7e0; color:#936478; }
 .sidebar .sidebar-bottom { flex-shrink:0; gap:6px; padding-top:10px; }
 .sidebar-bottom .role-switcher { margin:0; padding:9px 11px; min-height:48px; background:transparent; border:1px solid #ded5c7; gap:10px; }
 .sidebar-bottom .role-avatar { width:28px; height:28px; font-size:16px; border:0; border-radius:6px; }

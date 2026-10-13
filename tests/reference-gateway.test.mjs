@@ -7,3 +7,26 @@ test('attachment upload passes through a private existing thread and produces a 
  const file=new FormData();file.set('file',new Blob(['fixture']),'test.txt');file.set('extract_text','false');file.set('agent_id','other');
  const response=await fetch(config.publicOrigin+'/api/threads/t1/attachments',{method:'POST',headers:{Origin:config.publicOrigin,Cookie:cookie},body:file});assert.equal(response.status,200);const data=await response.json();assert.equal(data.status,'ready');assert.ok(data.id);assert.equal(data.path,undefined);const upload=calls.find(c=>c.path.endsWith('/upload'));assert.equal(upload.opts.body.get('extract_text'),'true');assert.equal(upload.opts.body.has('agent_id'),false);assert.ok(calls.some(c=>c.path==='/api/agents/mine/threads/t1/history'));assert.equal(resolveAttachments([data.id],{token:'private',user:{id:4},expires:Date.now()+60000},'mine','t1')[0].filename,'test.txt');
 });
+
+test('native WANX uploads remain usable while explicit extraction failures stay blocked',async t=>{
+ for(const extraction of [undefined,null,'unsupported','empty','failed'])await t.test(String(extraction),async t=>{
+  const config={upstream:'http://127.0.0.1:8088',publicOrigin:'http://127.0.0.1:0',bindings:{4:{agentId:'mine'}}};
+  let uploaded;
+  const fetcher=async(url,opts={})=>{
+   const path=new URL(url).pathname;
+   if(path.endsWith('/upload')){uploaded=opts.body;return Response.json({path:'inbound/1720000000000_notes.md',filename:'notes.md',media_type:'text/markdown',...(extraction===undefined?{}:{extraction_status:extraction})});}
+   return Response.json(path==='/api/auth/login'?{user:{id:4},access_token:'private',expires_in:600}:path==='/api/auth/me'?{id:4}:path==='/api/agents/mine'?{agent_id:'mine',user_id:4,is_shared:false}:{});
+  };
+  const app=createApp(config,{fetcher});app.listen(0,'127.0.0.1');await once(app,'listening');config.publicOrigin=`http://127.0.0.1:${app.address().port}`;t.after(()=>new Promise(r=>{app.closeAllConnections();app.close(r)}));
+  const login=await fetch(config.publicOrigin+'/api/login',{method:'POST',headers:{Origin:config.publicOrigin,'Content-Type':'application/json'},body:JSON.stringify({username:'test',password:'fixture'})});const cookie=login.headers.get('set-cookie').split(';')[0];
+  const form=new FormData();form.set('file',new Blob(['# 中文资料\n正文'],{type:'text/markdown'}),'notes.md');
+  const response=await fetch(config.publicOrigin+'/api/threads/t1/attachments',{method:'POST',headers:{Origin:config.publicOrigin,Cookie:cookie},body:form});assert.equal(response.status,200);const result=await response.json();
+  assert.equal(await uploaded.get('file').text(),'# 中文资料\n正文');
+  if(extraction==null){
+   assert.equal(result.status,'uploaded');assert.ok(result.id);assert.equal(result.characters,0);
+   const session={token:'private',user:{id:4},expires:Date.now()+60000};
+   assert.equal(resolveAttachments([result.id],session,'mine','t1')[0].path,'inbound/1720000000000_notes.md');
+   assert.throws(()=>resolveAttachments([result.id],session,'mine','other'),{code:'ATTACHMENT_UNAVAILABLE'});
+  }else{assert.equal(result.status,extraction);assert.equal(result.id,null);}
+ });
+});

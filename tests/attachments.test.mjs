@@ -7,3 +7,10 @@ test('native turns reference only trusted files and the forced default knowledge
 test('conversation history displays attachment names without internal paths',()=>{const h=projectHistory({messages:[{role:'user',content:'hello',inbound_attachments:[{filename:'note.txt',media_type:'text/plain',path:'private',agent_id:'hidden'}]}]});assert.deepEqual(h.messages[0].inbound_attachments,[{filename:'note.txt',media_type:'text/plain'}]);});
 test('reloaded history keeps the original question while omitting native extracted source blocks',()=>{for(const content of ['original question\n\n[上传资料] note.txt\n来源路径：inbound/1720000000000_note.txt\nprivate extraction',[{type:'text',text:'original question\n\n[上传资料] note.txt\n来源路径：inbound/1720000000000_note.txt\nprivate extraction'}]]){const h=projectHistory({messages:[{role:'user',content,inbound_attachments:[{filename:'note.txt',path:'hidden'}]}]});assert.equal(h.messages[0].content,'original question');assert.equal(JSON.stringify(h).includes('private extraction'),false);assert.equal(JSON.stringify(h).includes('inbound/'),false);}});
 test('multipart normalization allows one exact file and strips impersonation fields',async()=>{const f=new FormData();f.set('file',new Blob(['fixture']),'test.txt');f.set('agent_id','foreign');const r=new Response(f);const form=await singleUpload(Buffer.from(await r.arrayBuffer()),r.headers.get('content-type'),'file',10*1024*1024);assert.equal(form.get('file').name,'test.txt');assert.equal(form.has('agent_id'),false);});
+test('native uploaded references preserve the file block and reject unreadable extraction records',()=>{
+ const native={...a,status:'uploaded',filename:'笔记.md',mediaType:'text/markdown'};
+ const trusted=resolveAttachments([sealAttachment(native,s)],s,'mine','t1');
+ const frame=chatFrame({type:'user_turn',thread_id:'t1',text:'请读附件'},[],trusted);
+ assert.deepEqual(frame.messages[0].content[1],{type:'file',workspace_path:a.path,filename:'笔记.md',media_type:'text/markdown'});
+ for(const status of ['failed','empty','unsupported'])assert.throws(()=>resolveAttachments([sealAttachment({...a,status},s)],s,'mine','t1'),{code:'ATTACHMENT_UNAVAILABLE'});
+});
