@@ -22,6 +22,7 @@ export async function prepareMarketSource(destination) {
   await cp(path.join(root, 'dist'), path.join(destination, 'renderer'), {recursive:true});
   await mkdir(path.join(destination, 'resources'), {recursive:true});
   await cp(path.join(root, 'desktop/resources/icon.png'), path.join(destination, 'resources/icon.png'));
+  await cp(path.join(root, 'desktop/resources/icon.ico'), path.join(destination, 'resources/icon.ico'));
   await cp(path.join(root, 'desktop/THIRD_PARTY_NOTICES.md'), path.join(destination, 'THIRD_PARTY_NOTICES.md'));
   await mkdir(path.join(destination, 'node_modules'), {recursive:true});
   await cp(path.join(root, 'node_modules/ws'), path.join(destination, 'node_modules/ws'), {recursive:true});
