@@ -28,7 +28,14 @@ export function createTestConnection({accountId='fixture-account',boxId='fixture
       else if(p.endsWith('/history'))data={messages:[],has_more:false};
       else if(p==='/api/knowledge-bases')data=input.method==='POST'?library:[library];
       else if(p==='/api/knowledge-bases/own')data=library;
-      else if(p==='/api/agents/mine/upload')data={path:'inbound/1234567890123_sample.txt',filename:'sample.txt',media_type:'text/plain',extraction_status:'ready'};
+      else if(p==='/api/agents/mine/upload') {
+        // Consume the request before responding, just as the upstream server does.
+        if(input.body?.[Symbol.asyncIterator]&&!Buffer.isBuffer(input.body)) {
+          const chunks=[];for await(const chunk of input.body)chunks.push(Buffer.from(chunk));
+          input.body=Buffer.concat(chunks);
+        }
+        data={path:'inbound/1234567890123_sample.txt',filename:'sample.txt',media_type:'text/plain',extraction_status:'ready'};
+      }
       else if(p.endsWith('/memory/atoms/list'))data={items:[],has_more:false};
       else if(p.endsWith('/chat/hitl/resume'))return {status:200,headers:{'content-type':'text/event-stream'},body:Readable.from((async function*(){yield Buffer.from('data: {"type":"done"}\n\n');})())};
       return {status:200,headers:{'content-type':'application/json'},body:Buffer.from(JSON.stringify(data))};
