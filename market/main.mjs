@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, session } from "electron";
+import { app, BrowserWindow, Menu, dialog, session } from "electron";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { startHostRuntime } from "../server/host-runtime.mjs";
@@ -45,12 +45,18 @@ try {
   window = new BrowserWindow({
     width: 1280, height: 860, minWidth: 900, minHeight: 640,
     title: "知君", backgroundColor: "#f7f5f0", show: false,
+    ...(process.platform === "win32" ? { icon: fileURLToPath(new URL("../resources/icon.ico", import.meta.url)) } : {}),
     webPreferences: {
       session: isolated, sandbox: true, contextIsolation: true,
       nodeIntegration: false, webSecurity: true,
       allowRunningInsecureContent: false,
     },
   });
+  if (process.platform === "win32") {
+    Menu.setApplicationMenu(null);
+    window.setMenu(null);
+    window.setMenuBarVisibility(false);
+  }
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
     if (new URL(url).origin !== origin) event.preventDefault();
