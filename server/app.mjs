@@ -14,17 +14,44 @@ import {serveStatic} from './static.mjs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { ClientError, fail, id, bindingFor, assertPrivateAgent, assertPrivateBase, chatFrame, projectThread, projectHistory, validateConfig } from './policy.mjs';
 
-export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist'), sessionStore = null, roleStore = createRoleStore(), sessionCookieName = 'zhijun_session', allowAgentSelection = false} = {}) {
+export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist'), sessionStore = null, roleStore = createRoleStore(), sessionCookieName = 'zhijun_session', allowAgentSelection = false, hostClient = null, hostContext = null} = {}) {
   const config = validateConfig(rawConfig), sessions = new Map();
+  let hostSession = hostClient && hostContext?.user?.id ? {sid:'wanx-host',token:randomBytes(32).toString('hex'),user:hostContext.user,expires:Number.MAX_SAFE_INTEGER,sockets:new Set(),qr:null,qrBusy:false,sourceExpertId:null,agentId:null} : null;
   for(const s of sessionStore?.load()||[])sessions.set(s.sid,{...s,sockets:new Set(),qr:null,qrBusy:false});
   const saveSessions=()=>sessionStore?.save(sessions);
   if(!/^[A-Za-z0-9_]{1,64}$/.test(sessionCookieName))throw new Error('Invalid session cookie name');
   const cookieName = sessionCookieName;
-  function drop(s) { for (const ws of s.sockets) ws.close(4001, '会话已结束'); sessions.delete(s.sid); saveSessions(); }
+  function drop(s) { if (hostClient && hostSession === s) hostSession = null; for (const ws of s.sockets) ws.close(4001, '会话已结束'); sessions.delete(s.sid); saveSessions(); }
+  const stopHostListener=hostClient?.onSessionInvalidated?.(()=>{if(hostSession)drop(hostSession);});
+  const hostExpired=()=>fail(401,'HOST_SESSION_EXPIRED','万象连接已结束，请回到万象连接盒子后重新打开知君。');
   async function upstream(path, session, method='GET', body, contentType='application/json', responseFormat='json') {
     let r;
-    try { r = await fetcher(`${config.upstream.replace(/\/$/,'')}/api${path}`, {method, headers:{Accept:'application/json','Accept-Language':'zh-CN',...(session ? {Authorization:`Bearer ${session.token}`} : {}), ...(body !== undefined && !(body instanceof FormData) ? {'Content-Type':contentType}: {})}, body: body === undefined ? undefined : Buffer.isBuffer(body) || body instanceof FormData ? body : JSON.stringify(body), signal:AbortSignal.timeout(55000), redirect:'error'}); }
-    catch { fail(502,'SERVICE_UNAVAILABLE','暂时连接不上知君服务，请检查网络后重试。'); }
+    try {
+      if (hostClient) {
+        let outgoingBody = body, outgoingContentType = contentType;
+        if (body instanceof FormData) {
+          const encoded = new Response(body);
+          outgoingBody = Buffer.from(await encoded.arrayBuffer());
+          outgoingContentType = encoded.headers.get('content-type') || contentType;
+        }
+        r = await hostClient.request(`/api${path}`, {
+          method,
+          body: outgoingBody,
+          headers: {
+            Accept:'application/json',
+            'Accept-Language':'zh-CN',
+            ...(outgoingBody !== undefined ? {'Content-Type':outgoingContentType} : {}),
+          },
+        });
+      } else {
+        r = await fetcher(`${config.upstream.replace(/\/$/,'')}/api${path}`, {method, headers:{Accept:'application/json','Accept-Language':'zh-CN',...(session ? {Authorization:`Bearer ${session.token}`} : {}), ...(body !== undefined && !(body instanceof FormData) ? {'Content-Type':contentType}: {})}, body: body === undefined ? undefined : Buffer.isBuffer(body) || body instanceof FormData ? body : JSON.stringify(body), signal:AbortSignal.timeout(55000), redirect:'error'});
+      }
+    }
+    catch(error) {
+      if(hostClient&&error.code==='HOST_SESSION_EXPIRED'){if(hostSession)drop(hostSession);hostExpired();}
+      if(hostClient&&error.code==='NETWORK_NOT_READY')fail(503,'NETWORK_NOT_READY','万象网络连接中，请稍后重试。');
+      fail(502,'SERVICE_UNAVAILABLE','暂时连接不上知君服务，请检查网络后重试。');
+    }
     if (!r.ok) {
       if (r.status === 401 && session) drop(session);
       fail(r.status,[401,403,409,413,429].includes(r.status)?`HTTP_${r.status}`:'SERVICE_ERROR',({401:'登录已失效或账号密码不正确，请重新登录。',403:'当前账户没有此操作权限。',409:'当前操作暂时无法完成，请刷新后重试。',413:'文件超过服务允许的大小。',429:'操作过于频繁，请稍后重试。'})[r.status] || '服务暂时无法完成此操作，请稍后重试。');
@@ -34,6 +61,10 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
   }
   const provision = createProvisioner(config, upstream);
   function getSession(req) {
+    if (hostClient) {
+      if (!hostSession) hostExpired();
+      return hostSession;
+    }
     const sid = String(req.headers.cookie || '').split(';').map(x=>x.trim()).find(x=>x.startsWith(`${cookieName}=`))?.slice(cookieName.length+1);
     const s = sessions.get(sid);
     if (!s || Date.now() >= s.expires) { if(s) drop(s); fail(401,'LOGIN_REQUIRED','请先登录知君。'); }
@@ -56,9 +87,12 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
   const expertContexts = new Map();
   const experts=createExpertSelection(config,upstream,roleStore);
   function selectExpert(s,selection) {
+    if(hostClient&&hostSession!==s)hostExpired();
     for(const ws of s.sockets)ws.close(4002,'已切换知君专家');
     const next={...s,...selection,sockets:new Set(),qr:null,qrBusy:false};
-    sessions.set(s.sid,next);saveSessions();return next;
+    if (hostClient) hostSession = next;
+    else { sessions.set(s.sid,next); saveSessions(); }
+    return next;
   }
   const expertId = s => s.agentId || config.bindings[String(s.user.id)]?.agentId || null;
   function rolesFor(s) {
@@ -104,10 +138,14 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
         if (method !== 'GET' && !sameOrigin(req)) fail(403,'ORIGIN_REQUIRED','请求来源无效，请刷新页面。');
         const body = method==='GET' ? {} : await readBody(req);
         if(path==='/api/status' && method==='GET') {
-          let connected=false; try {await upstream('/auth/captcha'); connected=true;} catch{}
-          return json(res,{connected,version,provisioned:Object.keys(config.bindings).length>0});
+          let connected=false;
+          try { await upstream(hostClient ? '/auth/me' : '/auth/captcha', hostSession); connected=true; } catch{}
+          return json(res,{connected,version,provisioned:Boolean(hostClient) || Object.keys(config.bindings).length>0,host:Boolean(hostClient),...(hostClient?{sessionExpired:!hostSession}:{})});
         }
-        if(path==='/api/captcha' && method==='GET') return json(res,await upstream('/auth/captcha'));
+        if(hostClient && ['/api/login','/api/logout','/api/password'].includes(path)) fail(409,'HOST_MANAGED','请在万象中管理账号，连接盒子后重新打开知君。');
+        if(path==='/api/connection' && hostClient) return json(res,{scope:'wanx-host',selected:Boolean(hostSession),boxId:hostContext.boxId,name:'万象已连接盒子'});
+        if(hostClient && ['/api/connection/search','/api/connection/select'].includes(path)) fail(409,'HOST_MANAGED','请在万象中切换盒子后重新打开知君。');
+        if(path==='/api/captcha' && method==='GET') return json(res,hostClient?{provider:'wanx-host'}:await upstream('/auth/captcha'));
         if(path==='/api/login' && method==='POST') {
           const result=await upstream('/auth/login',null,'POST',{username:String(body.username||''),password:String(body.password||''),...(body.captcha_token?{captcha_token:String(body.captcha_token)}:{})});
           const sid=randomBytes(32).toString('hex'), ttl=Math.min(Number(result.expires_in)||3600,28800);
@@ -191,7 +229,9 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
           const decisions=body.decisions;
           if(!Array.isArray(decisions)||!decisions.length||decisions.length>16||decisions.some(d=>!['approve','reject','respond'].includes(d.type))) fail(400,'INVALID_DECISION','确认内容无效。');
           // The native service executes and persists the resumed turn. SSE reaches the client unchanged.
-          const r=await fetcher(`${config.upstream}/api${root}/chat/hitl/resume`,{method:'POST',headers:{Authorization:`Bearer ${s.token}`,'Content-Type':'application/json'},body:JSON.stringify({thread_id:id(body.thread_id),decisions}),signal:AbortSignal.timeout(300000)});
+          const r=hostClient
+            ? await hostClient.request(`/api${root}/chat/hitl/resume`,{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},body:{thread_id:id(body.thread_id),decisions}})
+            : await fetcher(`${config.upstream}/api${root}/chat/hitl/resume`,{method:'POST',headers:{Authorization:`Bearer ${s.token}`,'Content-Type':'application/json'},body:JSON.stringify({thread_id:id(body.thread_id),decisions}),signal:AbortSignal.timeout(300000)});
           if(!r.ok) fail(r.status,'APPROVAL_FAILED','暂时无法提交确认。');
           res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store'});
           for await(const chunk of r.body) { if(!res.destroyed) res.write(chunk); } return res.end();
@@ -251,7 +291,10 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
         fail(404,'NOT_FOUND','此功能暂不可用。');
       }
       await serveStatic(req,res,staticDir,path);
-    } catch(e) { if(!res.headersSent) json(res,{code:e instanceof ClientError?e.code:'SERVICE_ERROR',message:e instanceof ClientError?e.message:'服务暂时不可用，请稍后重试。'},e instanceof ClientError?e.status:500);else res.end(); }
+    } catch(e) {
+      if(hostClient&&e.code==='HOST_SESSION_EXPIRED')e=new ClientError(401,'HOST_SESSION_EXPIRED','万象连接已结束，请回到万象连接盒子后重新打开知君。');
+      if(hostClient&&e.code==='NETWORK_NOT_READY')e=new ClientError(503,'NETWORK_NOT_READY','万象网络连接中，请稍后重试。');
+      if(!res.headersSent) json(res,{code:e instanceof ClientError?e.code:'SERVICE_ERROR',message:e instanceof ClientError?e.message:'服务暂时不可用，请稍后重试。'},e instanceof ClientError?e.status:500);else res.end(); }
   });
   const wss=new WebSocketServer({noServer:true,maxPayload:128*1024});
   server.on('upgrade',async(req,socket,head)=>{
@@ -260,13 +303,24 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
       if(chatUrl.pathname!=='/api/chat'||!sameOrigin(req)||req.headers.host!==new URL(config.publicOrigin).host) fail(403,'ORIGIN','');
       const s=getSession(req);if(allowAgentSelection&&!s.sourceExpertId)fail(409,'EXPERT_REQUIRED','请先完成知君连接。');assertExpertScope(s,chatUrl.searchParams.get('expert'));
       const role=rolesFor(s).resolve(s.user,chatUrl.searchParams.get('role')||'personal'),aid=await privateAgent(s,role.id);
-      wss.handleUpgrade(req,socket,head,client=>{
+      wss.handleUpgrade(req,socket,head,async client=>{
         s.sockets.add(client);
-        const u=new URL(`/api/agents/${aid}/chat/ws`,config.upstream);u.protocol=u.protocol==='https:'?'wss:':'ws:';u.searchParams.set('token',s.token);
-        const remote=new WebSocket(u,{maxPayload:4*1024*1024,handshakeTimeout:15000});
-        const expire=setTimeout(()=>client.close(4001,'请重新登录'),Math.max(1,s.expires-Date.now()));
+        let remote;
+        try {
+          remote=hostClient
+            ? await hostClient.openStream(`/api/agents/${aid}/chat/ws`)
+            : (()=>{const u=new URL(`/api/agents/${aid}/chat/ws`,config.upstream);u.protocol=u.protocol==='https:'?'wss:':'ws:';u.searchParams.set('token',s.token);return new WebSocket(u,{maxPayload:4*1024*1024,handshakeTimeout:15000});})();
+        } catch {
+          s.sockets.delete(client);
+          client.close(1011,'对话连接已中断');
+          return;
+        }
+        if (client.readyState !== WebSocket.OPEN) { remote.close(); s.sockets.delete(client); return; }
+        const expireDelay=Math.min(0x7fffffff,Math.max(1,s.expires-Date.now()));
+        const expire=hostClient?null:setTimeout(()=>client.close(4001,'请重新登录'),expireDelay);
         const send=data=>{if(client.readyState===WebSocket.OPEN) client.send(JSON.stringify(data));};
-        remote.on('open',()=>send({type:'ready'}));
+        if (remote.readyState === WebSocket.OPEN) send({type:'ready'});
+        else remote.once('open',()=>send({type:'ready'}));
         remote.on('message',raw=>{try{const f=JSON.parse(raw.toString());if(f.type==='error') f.message='对话暂时未能完成，请查看记录后再试。';send(f);}catch{send({type:'error',message:'回复格式异常。'});}});
         remote.on('error',()=>{send({type:'error',message:'对话连接已中断，请重新打开这段对话。'});client.close(1011);});
         remote.on('close',()=>client.close(1000));
@@ -288,7 +342,7 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
     }catch{socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');}
   });
   const cleanup=setInterval(()=>{for(const s of sessions.values())if(Date.now()>=s.expires)drop(s);},60000);cleanup.unref();
-  server.on('close',()=>{clearInterval(cleanup);saveSessions();for(const s of sessions.values())for(const ws of s.sockets)ws.close(1012,'服务正在重启');wss.close();});
+  server.on('close',()=>{stopHostListener?.();clearInterval(cleanup);saveSessions();if(hostSession)drop(hostSession);for(const s of sessions.values())for(const ws of s.sockets)ws.close(1012,'服务正在重启');wss.close();});
   server.revokeSession=req=>{try{drop(getSession(req));}catch{}};
   return server;
 }

@@ -13,6 +13,7 @@ const {version}=JSON.parse(readFileSync(new URL('../package.json',import.meta.ur
 // Each endpoint owns a separate app, token store, role registry and binding map.
 // A selection never rewrites an active app's upstream, including in-flight calls.
 export function createConnectedApp(config,options={}, {directory,discovery,probe=probeWanx,rememberSelection=false,scope='server-lan',sessionStoreFactory=createSessionStore}={}) {
+  if(options.hostClient) return createApp(config,{...options,sessionStore:null,allowAgentSelection:true});
   const apps=new Map(),known=new Map();
   const hash=address=>createHash('sha256').update(address).digest('hex').slice(0,32);
   const defaultId=config.upstream?hash(new URL(config.upstream).origin):null;
