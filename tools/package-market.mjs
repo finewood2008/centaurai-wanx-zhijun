@@ -18,6 +18,7 @@ export async function prepareMarketSource(destination) {
   await mkdir(path.join(destination, 'server'), {recursive:true});
   await cp(path.join(root, 'market/main.mjs'), path.join(destination, 'market/main.mjs'));
   for (const name of serverFiles) await cp(path.join(root, `server/${name}.mjs`), path.join(destination, `server/${name}.mjs`));
+  await cp(path.join(root, 'server/wanx-host-sdk.cjs'), path.join(destination, 'server/wanx-host-sdk.cjs'));
   await cp(path.join(root, 'dist'), path.join(destination, 'renderer'), {recursive:true});
   await mkdir(path.join(destination, 'resources'), {recursive:true});
   await cp(path.join(root, 'desktop/resources/icon.png'), path.join(destination, 'resources/icon.png'));
