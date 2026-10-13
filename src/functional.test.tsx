@@ -110,3 +110,12 @@ it('a mock password update invalidates the client session only after success',as
  fireEvent.change(screen.getByLabelText('当前密码'),{target:{value:'mock-old'}});fireEvent.change(screen.getByLabelText('新密码'),{target:{value:'mock-new'}});fireEvent.click(screen.getByRole('button',{name:'更改密码并重新登录'}));
  await waitFor(()=>expect(logout).toHaveBeenCalledOnce());expect(mocked).toHaveBeenCalledWith('/password','POST',{old_password:'mock-old',new_password:'mock-new'});
 });
+
+it('explains missing knowledge without ending a streamed reply and clears the notice on the next turn',async()=>{
+ const ws=await chat();fireEvent.change(screen.getByLabelText('和知君说说'),{target:{value:'你好'}});fireEvent.click(screen.getByRole('button',{name:'发送'}));
+ act(()=>ws.frame({type:'notice',code:'CHAT_WITHOUT_KNOWLEDGE',thread_id:'another-thread'}));expect(screen.queryByRole('status')).not.toBeInTheDocument();
+ act(()=>ws.frame({type:'notice',code:'CHAT_WITHOUT_KNOWLEDGE',thread_id:'mock-thread',message:'untrusted message'}));
+ expect(screen.getByRole('status')).toHaveTextContent('本次对话未引用知识库');expect(screen.queryByRole('alert')).not.toBeInTheDocument();expect(screen.getByRole('button',{name:'停止回复'})).toBeEnabled();
+ act(()=>{ws.frame({type:'token',thread_id:'mock-thread',content:'可以继续聊天'});ws.frame({type:'done',thread_id:'mock-thread'});});expect(screen.getByText('可以继续聊天')).toBeVisible();
+ fireEvent.change(screen.getByLabelText('和知君说说'),{target:{value:'继续'}});fireEvent.click(screen.getByRole('button',{name:'发送'}));expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});
