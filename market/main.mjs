@@ -27,6 +27,10 @@ app.on("before-quit", (event) => {
 
 await app.whenReady();
 try {
+  if (process.platform === "darwin") {
+    app.dock?.setIcon(fileURLToPath(new URL("../resources/icon.png", import.meta.url)));
+    app.dock?.show();
+  }
   runtime = await startHostRuntime({
     dataDir: app.getPath("userData"),
     staticDir: fileURLToPath(new URL("../renderer/", import.meta.url)),

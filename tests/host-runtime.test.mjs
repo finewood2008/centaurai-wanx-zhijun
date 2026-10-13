@@ -37,8 +37,9 @@ test('managed HTTP and multipart upload cross the actual host IPC without exposi
  const form=new FormData();form.set('file',new Blob(['hello host upload'],{type:'text/plain'}),'sample.txt');
  const response=await f.request('/api/threads/t1/attachments',{method:'POST',headers:{'X-Zhijun-Expert':'mine'},body:form});
  const attachment=await response.json();assert.equal(response.status,200);assert.equal(attachment.status,'ready');assert.ok(attachment.id);
- const upload=f.host.calls.find(call=>call.path==='/api/agents/mine/upload');assert.ok(Buffer.isBuffer(upload.body));
- const decoded=await new Response(upload.body,{headers:{'content-type':upload.headers['content-type']}}).formData();assert.equal(await decoded.get('file').text(),'hello host upload');assert.equal(decoded.get('extract_text'),'true');
+ const upload=f.host.calls.find(call=>call.path==='/api/agents/mine/upload');assert.ok(upload.body);
+ const chunks=[];if(Buffer.isBuffer(upload.body))chunks.push(upload.body);else for await(const chunk of upload.body)chunks.push(Buffer.from(chunk));
+ const decoded=await new Response(Buffer.concat(chunks),{headers:{'content-type':upload.headers['content-type']}}).formData();assert.equal(await decoded.get('file').text(),'hello host upload');assert.equal(decoded.get('extract_text'),'true');
  const approval=await f.request('/api/approval',{method:'POST',headers:{'Content-Type':'application/json','X-Zhijun-Expert':'mine'},body:JSON.stringify({thread_id:'t1',decisions:[{type:'approve'}]})});
  assert.equal(approval.headers.get('content-type'),'text/event-stream');assert.match(await approval.text(),/"done"/);
 });
