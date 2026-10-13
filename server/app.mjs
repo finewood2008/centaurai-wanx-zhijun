@@ -232,9 +232,11 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
           const form=await singleUpload(body,req.headers['content-type'],'file',10*1024*1024);form.set('extract_text','true');
           const a=await upstream(`${root}/upload`,s,'POST',form);
           if(!/^inbound\/[0-9]{10,}_[^/\\\x00-\x1f\x7f]+$/.test(a.path||''))fail(502,'UPLOAD_FAILED','附件上传暂时无法完成。');
-          const status=a.extraction_status||'unsupported';
+          // WANX native uploads return a file reference without extraction metadata.
+          // Keep that separate from an explicit extraction failure.
+          const status=a.extraction_status??'uploaded';
           const attachment={agentId:aid,threadId:tid,path:a.path,filename:a.filename,mediaType:a.media_type,status};
-          return json(res,{id:status==='ready'?sealAttachment(attachment,s):null,filename:a.filename,media_type:a.media_type,status,truncated:!!a.extraction_truncated,characters:a.extraction_characters||0});
+          return json(res,{id:['ready','uploaded'].includes(status)?sealAttachment(attachment,s):null,filename:a.filename,media_type:a.media_type,status,truncated:!!a.extraction_truncated,characters:a.extraction_characters||0});
         }
         if(path==='/api/approval' && method==='POST') {
           const decisions=body.decisions;

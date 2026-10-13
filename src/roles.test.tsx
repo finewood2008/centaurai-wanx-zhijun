@@ -41,7 +41,7 @@ describe('independent personal roles',()=>{
   await waitFor(()=>expect(finishPersonal).toBeTypeOf('function'));
   fireEvent.click(screen.getByRole('button',{name:'当前角色：个人，切换或创建角色'}));
   fireEvent.click(screen.getByRole('button',{name:/工作 工作中的我/}));
-  await screen.findByRole('button',{name:'工作中的对话'});
+  await screen.findByRole('button',{name:/^工作中的对话 /});
   await act(async()=>finishPersonal([{thread_id:'private-thread',title:'个人空间里的旧对话'}]));
   expect(screen.queryByText('个人空间里的旧对话')).not.toBeInTheDocument();
   expect(localStorage.getItem('zhijun-role-4')).toBe('work');

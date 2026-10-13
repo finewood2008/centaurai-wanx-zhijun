@@ -14,7 +14,7 @@ export function resolveAttachments(ids,session,aid,threadId){
    if(typeof token!=='string'||token.length>4096)throw new Error();
    const bytes=Buffer.from(token,'base64url'),decipher=createDecipheriv('aes-256-gcm',key(session),bytes.subarray(0,12));decipher.setAuthTag(bytes.subarray(12,28));
    const a=JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)),decipher.final()]).toString());
-   if(Number(a.userId)!==Number(session.user.id)||a.agentId!==aid||a.threadId!==threadId||a.expires<=Date.now()||a.status!=='ready'||!/^inbound\/[0-9]{10,}_[^/\\\x00-\x1f\x7f]+$/.test(a.path))throw new Error();
+   if(Number(a.userId)!==Number(session.user.id)||a.agentId!==aid||a.threadId!==threadId||a.expires<=Date.now()||!['ready','uploaded'].includes(a.status)||!/^inbound\/[0-9]{10,}_[^/\\\x00-\x1f\x7f]+$/.test(a.path))throw new Error();
    return a;
   }catch{fail(400,'ATTACHMENT_UNAVAILABLE','附件已失效或不属于这段对话，请重新上传。');}
  });

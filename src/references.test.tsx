@@ -9,6 +9,11 @@ describe('current-conversation references',()=>{
   render(<Harness/>);fireEvent.change(screen.getByLabelText('files'),{target:{files:[new File(['one'],'a.txt'),new File(['two'],'b.txt')]}});
   await screen.findByText('b.txt:failed');expect(screen.getByText('a.txt:ready')).toBeVisible();expect(screen.getByRole('button',{name:'send'})).toBeDisabled();fireEvent.click(screen.getByRole('button',{name:'remove b.txt'}));expect(screen.getByRole('button',{name:'send'})).toBeEnabled();
  });
+ it('accepts native WANX uploads without claiming text extraction',async()=>{
+  mocked.mockResolvedValue({id:'native-reference',status:'uploaded'});render(<Harness/>);
+  fireEvent.change(screen.getByLabelText('files'),{target:{files:[new File(['# 中文资料'],'notes.md',{type:'text/markdown'})]}});
+  await screen.findByText('notes.md:ready');expect(screen.getByRole('button',{name:'send'})).toBeEnabled();
+ });
  it('rejects oversized and over-count selections before sending any upload',()=>{
   render(<Harness/>);const large=new File(['x'],'large.txt');Object.defineProperty(large,'size',{value:10*1024*1024+1});fireEvent.change(screen.getByLabelText('files'),{target:{files:[large]}});expect(screen.getByText(/10 MB/)).toBeVisible();fireEvent.change(screen.getByLabelText('files'),{target:{files:Array.from({length:9},(_,i)=>new File(['x'],`${i}.txt`))}});expect(screen.getByText(/最多参考 8/)).toBeVisible();expect(mocked).not.toHaveBeenCalled();
  });
@@ -17,9 +22,9 @@ describe('current-conversation references',()=>{
  });
  it('echoes an outgoing reference immediately and restores draft plus reference on immediate send failure',async()=>{
   const sockets:any[]=[];class Socket{static OPEN=1;readyState=1;onmessage:any;onclose:any;onerror:any;send=vi.fn((body:string)=>{if(JSON.parse(body).type==='user_turn')throw new Error('offline')});close=vi.fn();constructor(){sockets.push(this)}}
-  vi.stubGlobal('WebSocket',Socket);mocked.mockImplementation(async path=>path.endsWith('/history')?{messages:[],has_more:false,next_offset:0}:path.endsWith('/attachments')?{id:'opaque',status:'ready'}:{});
+  vi.stubGlobal('WebSocket',Socket);mocked.mockImplementation(async path=>path.endsWith('/history')?{messages:[],has_more:false,next_offset:0}:path.endsWith('/attachments')?{id:'opaque',status:'uploaded'}:{});
   const view=render(<Chat thread="t1" onChanged={()=>{}}/>);await waitFor(()=>expect(screen.queryByText('正在读取这段对话…')).not.toBeInTheDocument());await act(async()=>{sockets[0].onmessage({data:JSON.stringify({type:'ready'})})});
-  fireEvent.change(view.container.querySelector('input[type="file"]')!,{target:{files:[new File(['reference'],'note.txt')]}});await screen.findByText('已就绪 · 仅本对话');fireEvent.change(screen.getByRole('textbox',{name:'和知君说说'}),{target:{value:'请参考附件'}});fireEvent.click(screen.getByRole('button',{name:'发送'}));
+  fireEvent.change(view.container.querySelector('input[type="file"]')!,{target:{files:[new File(['reference'],'note.txt')]}});await screen.findByText('已上传 · 发送后读取');expect(screen.queryByText('已就绪 · 仅本对话')).not.toBeInTheDocument();fireEvent.change(screen.getByRole('textbox',{name:'和知君说说'}),{target:{value:'请参考附件'}});fireEvent.click(screen.getByRole('button',{name:'发送'}));
   expect(screen.getByRole('textbox',{name:'和知君说说'})).toHaveValue('请参考附件');expect(screen.getByText('note.txt')).toBeVisible();expect(screen.getByText('未能发送，内容和附件已保留。')).toBeVisible();
   const turn=sockets[0].send.mock.calls.map((c:any)=>JSON.parse(c[0])).find((f:any)=>f.type==='user_turn');expect(turn.attachment_ids).toEqual(['opaque']);expect(turn.messages).toBeUndefined();view.unmount();vi.unstubAllGlobals();
  });

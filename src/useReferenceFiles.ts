@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';import {api} from './api';
-export type ReferenceItem={key:string;file:File;filename:string;state:'uploading'|'ready'|'failed';id?:string;truncated?:boolean;error?:string};
+export type ReferenceItem={key:string;file:File;filename:string;state:'uploading'|'ready'|'failed';id?:string;truncated?:boolean;uploadedOnly?:boolean;error?:string};
 export function useReferenceFiles(thread:string){
  const [items,setItems]=useState<ReferenceItem[]>([]),[error,setError]=useState('');
  const active=useRef(true),controller=useRef<AbortController|null>(null),itemsRef=useRef(items);itemsRef.current=items;
@@ -14,8 +14,8 @@ export function useReferenceFiles(thread:string){
     const body=new FormData();body.append('file',item.file);
     const result=await api(`/threads/${encodeURIComponent(thread)}/attachments`,'POST',body,c.signal);
     if(!active.current||c.signal.aborted)break;
-    const ready=result.status==='ready'&&typeof result.id==='string';
-    setItems(previous=>previous.map(x=>x.key===item.key?{...x,id:ready?result.id:undefined,state:ready?'ready':'failed',truncated:!!result.truncated,error:ready?undefined:({unsupported:'这份附件暂时无法提取文字。图片或扫描件需要服务端支持识别。',empty:'没有读到可参考的文字，请换一份文件。',failed:'附件整理失败，请重试或移除。'} as Record<string,string>)[result.status]||'附件暂时无法使用。'}:x));
+    const ready=['ready','uploaded'].includes(result.status)&&typeof result.id==='string';
+    setItems(previous=>previous.map(x=>x.key===item.key?{...x,id:ready?result.id:undefined,state:ready?'ready':'failed',truncated:!!result.truncated,uploadedOnly:result.status==='uploaded',error:ready?undefined:({unsupported:'服务暂不支持提取这类附件的文字，请换用文本文件。',empty:'没有读到可参考的文字，请换一份文件。',failed:'附件整理失败，请重试或移除。'} as Record<string,string>)[result.status]||'附件暂时无法使用。'}:x));
    }catch(e){if(!c.signal.aborted&&active.current)setItems(previous=>previous.map(x=>x.key===item.key?{...x,state:'failed',error:(e as Error).message}:x))}
   }}finally{controller.current=null}
  }
