@@ -44,21 +44,35 @@ npm start
 
 市场版使用万象底座的 Electron、用户身份和设备连接，不需要独立登录或填写服务地址。先在万象登录并连接盒子，再从应用市场打开知君。
 
-在本仓库执行以下命令即可构建前端、准备运行目录并生成签名的应用包，不再需要手动创建 `/build/zhijun`：
+在本仓库使用一键脚本。首次复制本机配置：
 
 ```sh
-npm ci
-npm run package:market -- \
-  --out ./delivery/market/universal \
-  --key "$HOME/.config/wanx-release/release-private.pem" \
-  --key-id release-2026
+cp market-release.example.json market-release.local.json
 ```
 
-默认使用同级 `centuarai-wanx/wanx-client` 的打包工具（该目录需先安装 npm 依赖），不同位置可加 `--wanx-client /实际路径/wanx-client`。输出 `.wanxapp` 和配套 `.wanxapp.release.json`，两者一起用于市场发布；私钥不会进入包内。签名公钥必须同时配置到市场服务和万象客户端。已有输出不会覆盖，请为新构建选择新目录或递增版本。
+编辑 `market-release.local.json` 的 `version`（例如 `0.4.6`），然后执行：
 
-知君市场包默认使用 `universal/universal`，同一个 `.wanxapp` 可供 Windows、Intel Mac 和 Apple 芯片 Mac 的万象使用。包内是前端资源和 JavaScript 服务，共享万象 Electron，不携带原生运行时，也不按构建电脑的平台绑定。万象底座的 `.dmg` / `.exe` 安装包仍区分平台和架构；市场版入口为 `market/main.mjs`，与独立桌面入口分开。各目标系统仍需完成运行验证。
+```sh
+./package.sh
+```
 
-旧的带平台签名包不会自动变成通用包。发布通用版时应递增版本并同步 `package.json` 与 `market/wanx-app.json`，重新生成 `.wanxapp` 和 `.release.json`，在支持通用包的市场后台上传并发布。不要手动修改已有签名描述。打包工具仍兼容显式 `--os macos|windows --arch x64|arm64`，仅供确实依赖平台的应用使用。
+也可以直接指定版本，命令行参数优先于配置文件：
+
+```sh
+./package.sh 0.4.7
+# 查看全部参数
+./package.sh --help
+```
+
+**发行版本必须来自本机配置或 `--version`，不会回退读取源码版本。** 本机配置已加入 Git 忽略规则，不要提交。脚本不修改 `package.json`、锁文件、桌面或市场清单的源码版本；仅在本次构建中将所选版本写入界面显示、包内 `package.json`、市场清单和签名描述。普通开发构建仍显示源码版本。
+
+默认输出到 `delivery/market/<版本>/`，包含 `.wanxapp` 和配套 `.wanxapp.release.json`。脚本先检查版本、私钥与万象信任公钥，再重新构建前端、封包、签名并校验签名与 SHA-256。已有产物不会覆盖。Admin 中创建与产物相同版本的草稿，上传这两个文件；脚本不会自动上传或发布。稳定通道请使用 `0.4.6` 这样的稳定版本；不能通过 `+build` 让同一版本成为升级。
+
+默认复用已有 `~/.config/wanx-release/release-private.pem`，密钥 ID 为 `release-2026`，不会生成或替换密钥。可在配置中设置 `key`、`key-id`、`out`、`wanx-client`，或使用同名命令行参数覆盖。配置相对路径以配置文件所在目录为基准；命令行相对路径以当前目录为基准；支持 `~/`。自定义配置可用 `--config /路径/market-release.local.json`。配置只保存版本和路径，不保存私钥内容。
+
+首次使用需在本仓库执行 `npm ci`，并在同级 `centuarai-wanx/wanx-client` 安装 npm 依赖。签名公钥必须同时配置在市场服务和万象客户端；私钥不会进入应用包。
+
+知君市场包默认使用 `universal/universal`，同一个 `.wanxapp` 可供 Windows、Intel Mac 和 Apple 芯片 Mac 的万象使用。包内是前端资源和 JavaScript 服务，共享万象 Electron，不携带原生运行时。万象底座的 `.dmg` / `.exe` 仍区分平台与架构。各目标系统仍需完成运行验证；旧客户端和后台必须先更新到支持通用包的版本。确有平台依赖时可同时指定 `--os macos|windows --arch x64|arm64`。
 
 ## WANX 后端
 

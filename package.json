@@ -10,7 +10,7 @@
     "start": "node server/index.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:ui": "vitest run",
-    "package:market": "npm run build && node tools/package-market.mjs"
+    "package:market": "node tools/package-market.mjs"
   },
   "dependencies": {
     "@centaurai/wanx-host-sdk": "file:desktop/vendor/centaurai-wanx-host-sdk-0.1.0.tgz",
