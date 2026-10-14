@@ -21,6 +21,17 @@ it('HTTP session-status seam clears private UI and directs a revoked Host launch
  expect(screen.queryByRole('button',{name:'连接服务，搜索或切换 万象WANX'})).not.toBeInTheDocument();
 });
 
+it.each([200,204,205])('successful DELETE with empty response %s does not fail or expire the session',async status=>{
+ const expired=vi.fn();window.addEventListener('session-expired',expired);
+ try {
+  const fetcher=vi.fn(async()=>status===204||status===205?new Response(null,{status}):Response.json(null));
+  vi.stubGlobal('fetch',fetcher);
+  await expect(api('/threads/test-thread','DELETE')).resolves.toBeNull();
+  expect(fetcher).toHaveBeenCalledWith('/api/threads/test-thread',expect.objectContaining({method:'DELETE'}));
+  expect(expired).not.toHaveBeenCalled();
+ } finally {window.removeEventListener('session-expired',expired);}
+});
+
 it.each(['json-null','204','205'])('deleting a thread handles %s and refreshes the history list',async response=>{
  let deleted=false;
  Element.prototype.scrollIntoView=vi.fn();
@@ -48,7 +59,7 @@ it.each(['json-null','204','205'])('deleting a thread handles %s and refreshes t
  expect(screen.getByRole('button',{name:'删除测试用户，私人空间与设置'})).toBeVisible();
 });
 
-it.each([401,403])('preserves HTTP %s failure handling for a null error body',async status=>{
+it.each([401,403,500])('preserves HTTP %s failure handling for a null error body',async status=>{
  vi.stubGlobal('fetch',vi.fn(async()=>Response.json(null,{status})));
  const expired=vi.fn();
  window.addEventListener('session-expired',expired);
