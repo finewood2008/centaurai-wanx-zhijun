@@ -1,3 +1,4 @@
+import {THREAD_DELETED,currentThreadDeletion} from "../../../../threads";
 /**
  * Embeddable memory dashboard (tabs + content). Used by the Memory page,
  * Experts MemoryCatalogDrawer, and Personalization.
@@ -130,6 +131,12 @@ export default function MemoryPanel({
   const [activeTab, setActiveTab] = useState<MemoryTab>("overview");
   const [libraryView, setLibraryView] = useState<LibraryView>("tree");
   const [pendingCount, setPendingCount] = useState(0);
+  const [memoryRevision, setMemoryRevision] = useState(0);
+  useEffect(() => {
+    const deleted = (event: Event) => { if (currentThreadDeletion(event)) setMemoryRevision(value => value + 1); };
+    window.addEventListener(THREAD_DELETED, deleted);
+    return () => window.removeEventListener(THREAD_DELETED, deleted);
+  }, []);
   const [expandEntityId, setExpandEntityId] = useState<string | undefined>(
     undefined,
   );
@@ -152,7 +159,7 @@ export default function MemoryPanel({
     return () => {
       cancelled = true;
     };
-  }, [agentId, activeTab]);
+  }, [agentId, activeTab, memoryRevision]);
 
   const tabItems = useMemo(() => {
     if (!agentId) return [];
