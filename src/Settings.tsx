@@ -1,4 +1,4 @@
-import {version} from '../package.json';
+import {version} from './version';
 import {UserRound,Type,Brain,BookOpen,MessageCircle,ArrowUpRight,LogOut,ShieldCheck} from 'lucide-react';
 import {Memory} from './Memory';
 import {useEffect,useRef,useState} from 'react';import {QRCodeSVG} from 'qrcode.react';import {api,User} from './api';

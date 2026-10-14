@@ -31,3 +31,6 @@ desktop/resources/server-profile.json
 *.original.py
 remote-connect/bin/
 remote-connect/verification/
+
+# Local market release version and signing paths
+market-release.local.json

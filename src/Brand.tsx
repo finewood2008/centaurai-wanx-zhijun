@@ -1,6 +1,6 @@
 import {useRef} from 'react';
 import {X} from 'lucide-react';
-import {version} from '../package.json';
+import {version} from './version';
 import centaurLogo from './assets/centaurai-mark.png';
 import './brand.css';
 

@@ -18,9 +18,9 @@ export function roleRequestOptions(options: RequestInit = {}): RequestInit {
 }
 export async function api<T=any>(path:string, method='GET', body?:unknown, signal?:AbortSignal):Promise<T> {
   const r=await fetch('/api'+path,roleRequestOptions({method,signal,headers:body instanceof FormData?{}:body===undefined?{}:{'Content-Type':'application/json'},body:body instanceof FormData?body:body===undefined?undefined:JSON.stringify(body)}));
-  const data=await r.json();
-  if(data.host&&data.sessionExpired||data.code==='HOST_SESSION_EXPIRED')window.dispatchEvent(new CustomEvent('session-expired',{detail:{host:true,message:'万象连接已结束，请回到万象连接盒子后重新打开知君。'}}));
-  if(!r.ok){if(data.managedHost&&(r.status===401||data.code==='HOST_SESSION_REVOKED'))window.dispatchEvent(new Event('managed-host-unavailable'));if(r.status===401&&data.code!=='HOST_SESSION_EXPIRED')window.dispatchEvent(new Event('session-expired'));if(data.code==='EXPERT_CHANGED')window.dispatchEvent(new Event('expert-changed'));throw Object.assign(new Error(data.message||'暂时无法完成操作。'),{code:data.code,managedHost:data.managedHost===true});}
+  const data=r.status===204||r.status===205?null:await r.json();
+  if(data?.host&&data?.sessionExpired||data?.code==='HOST_SESSION_EXPIRED')window.dispatchEvent(new CustomEvent('session-expired',{detail:{host:true,message:'万象连接已结束，请回到万象连接盒子后重新打开知君。'}}));
+  if(!r.ok){if(data?.managedHost&&(r.status===401||data?.code==='HOST_SESSION_REVOKED'))window.dispatchEvent(new Event('managed-host-unavailable'));if(r.status===401&&data?.code!=='HOST_SESSION_EXPIRED')window.dispatchEvent(new Event('session-expired'));if(data?.code==='EXPERT_CHANGED')window.dispatchEvent(new Event('expert-changed'));throw Object.assign(new Error(data?.message||'暂时无法完成操作。'),{code:data?.code,managedHost:data?.managedHost===true});}
   return data;
 }
 export type Role={id:string;name:string;description:string};
