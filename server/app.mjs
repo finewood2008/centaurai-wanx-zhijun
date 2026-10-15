@@ -1,3 +1,4 @@
+import {interactionPreferences} from './interaction.mjs';
 import {readFileSync} from 'node:fs';
 const {version}=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
 import {createRoles, createRoleStore} from './roles.mjs';
@@ -209,6 +210,7 @@ export function createApp(rawConfig, {fetcher = fetch, staticDir = resolve('dist
         assertExpertScope(s,req.headers['x-zhijun-expert']);
         const role = rolesFor(s).resolve(s.user, req.headers['x-zhijun-role'] || 'personal');
         const aid=await privateAgent(s, role.id), root=`/agents/${aid}`;
+        if(path==='/api/interaction-preferences'&&['GET','PUT','DELETE'].includes(method))return json(res,await interactionPreferences(upstream,root,s,method,body));
         const ontology=ontologyRoute({path,method,body,url,aid});
         if(ontology) return json(res,await upstream(ontology.target,s,method,ontology.payload));
         const memory=await memoryRoute({path,method,body,url,aid,contentType:req.headers['content-type'],portableImport:config.memoryPortableImport===true});

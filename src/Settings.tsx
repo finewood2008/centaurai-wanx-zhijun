@@ -1,3 +1,5 @@
+import {InteractionPreferences} from './InteractionPreferences';
+import {settingsNavigationAllowed} from './settingsNavigation';
 import {version} from './version';
 import {UserRound,Type,Brain,BookOpen,MessageCircle,ArrowUpRight,LogOut,ShieldCheck} from 'lucide-react';
 import {Memory} from './Memory';
@@ -8,14 +10,14 @@ export function Settings({user,roleName,onUser,onLogout}:{user:User;roleName:str
  useEffect(()=>{setError('');setNotice('');if(!user.ready)return;const c=new AbortController();if(tab==='wechat')api('/wechat','GET',undefined,c.signal).then(setChannels).catch(e=>{if(!c.signal.aborted)setError(e.message);});return()=>c.abort();},[tab,revision,user.ready]);
  async function run(fn:()=>Promise<unknown>,message='已保存。'){setError('');setNotice('');setBusy(true);try{await fn();if(mounted.current)setNotice(message);}catch(e){if(mounted.current)setError((e as Error).message);}finally{if(mounted.current)setBusy(false);}}
  async function connect(){poll.current?.abort();const c=new AbortController();poll.current=c;setError('');setNotice('');setBusy(true);try{const q=await api('/wechat/qr','POST',{},c.signal);setQr(q.url);const end=Date.now()+300000;while(!c.signal.aborted&&Date.now()<end){const r=await api('/wechat/poll','POST',{},c.signal);if(r.status==='success'){setQr('');setNotice('微信已连接。你可以在微信里继续与知君对话。');setRevision(x=>x+1);return;}if(['error','expired','failed'].includes(r.status))throw new Error('本次连接未完成，请重新获取二维码。');await new Promise(resolve=>setTimeout(resolve,1200));}if(!c.signal.aborted)throw new Error('二维码已过期，请重新获取。');}catch(e){if(!c.signal.aborted)setError((e as Error).message);}finally{if(mounted.current){setBusy(false);setQr('');}}}
- const categories=[{id:'account',label:'账户',icon:UserRound,description:user.managedHost?'账户由万象统一管理。':'如何称呼你，以及账户安全。'}, {id:'appearance',label:'阅读偏好',icon:Type,description:'让每一段对话，读起来更舒适。'}, {id:'memory',label:'记忆整理',icon:Brain,description:'决定知君如何记住这个角色里的你。'}, {id:'library',label:'知识库',icon:BookOpen,description:'了解这个角色的资料如何参与对话。'}, {id:'wechat',label:'微信连接',icon:MessageCircle,description:'换一种熟悉的方式，继续相处。'}];
+ const categories=[{id:'account',label:'账户',icon:UserRound,description:user.managedHost?'账户由万象统一管理。':'如何称呼你，以及账户安全。'}, {id:'appearance',label:'阅读偏好',icon:Type,description:'让每一段对话，读起来更舒适。'}, {id:'interaction',label:'交流方式',icon:MessageCircle,description:'让知君按你习惯的方式回应。'}, {id:'memory',label:'记忆整理',icon:Brain,description:'决定知君如何记住这个角色里的你。'}, {id:'library',label:'知识库',icon:BookOpen,description:'了解这个角色的资料如何参与对话。'}, {id:'wechat',label:'微信连接',icon:MessageCircle,description:'换一种熟悉的方式，继续相处。'}];
  const current=categories.find(x=>x.id===tab)!;
- const scoped=['memory','library','wechat'].includes(tab);
+ const scoped=['interaction','memory','library','wechat'].includes(tab);
  return <div className="page settings">
   <header className="settings-heading"><span className="eyebrow">MAKE YOURSELF AT HOME</span><h1>你的私人空间</h1><p>按自己的习惯，与知君相处。</p></header>
   <div className="settings-layout">
    <nav className="settings-nav" aria-label="设置分类">
-    {categories.map(({id,label,icon:Icon},index)=><button key={id} className={(tab===id?'is-selected ':'')+(index===2?'role-category-start':'')} aria-current={tab===id?'page':undefined} onClick={()=>{if(tab==='wechat'){poll.current?.abort();setQr('');}setTab(id);}}><Icon size={17}/><span>{label}</span></button>)}
+    {categories.map(({id,label,icon:Icon},index)=><button key={id} className={(tab===id?'is-selected ':'')+(index===2?'role-category-start':'')} aria-current={tab===id?'page':undefined} onClick={()=>{if(id===tab||!settingsNavigationAllowed())return;if(tab==='wechat'){poll.current?.abort();setQr('');}setTab(id);}}><Icon size={17}/><span>{label}</span></button>)}
     <p className="settings-version">知君 · {version}</p>
    </nav>
    <section className="settings-content" aria-label={current.label}>
@@ -26,6 +28,7 @@ export function Settings({user,roleName,onUser,onLogout}:{user:User;roleName:str
      {!user.managedHost&&<><details className="setting-card password-section"><summary><ShieldCheck size={19}/><span>账户安全<small>更新你的登录密码</small></span></summary><div className="password-form"><label>当前密码<input type="password" autoComplete="current-password" value={oldPassword} onChange={e=>setOldPassword(e.target.value)}/></label><label>新密码<input type="password" autoComplete="new-password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label><p className="quiet">更改后需要重新登录，你的对话与记忆会保留。</p><button disabled={busy||!oldPassword||!newPassword} onClick={()=>run(async()=>{await api('/password','POST',{old_password:oldPassword,new_password:newPassword});onLogout();})}>更改密码并重新登录</button></div></details>
      <div className="settings-signout"><span>暂别，也不影响下一次相见。</span><button disabled={busy} onClick={onLogout}><LogOut size={15}/>退出登录</button></div></>}
     </>}
+    {tab==='interaction'&&(user.ready?<InteractionPreferences/>:<p className="notice">{user.reason}</p>)}
     {tab==='memory'&&(user.ready?<div className="settings-memory"><Memory settingsOnly/></div>:<p className="notice">{user.reason}</p>)}
     {tab==='library'&&<section className="setting-card library-setting"><div className="setting-symbol"><BookOpen size={23}/></div><h3>让资料成为理解你的线索</h3><p>这个角色的私人知识库默认用于对话参考。资料整理完成后，知君会根据对话检索相关片段。</p><div className="setting-fact"><span>长期留存的资料</span><strong>每份最多 32 MB</strong></div><div className="setting-fact"><span>对话中的参考附件</span><strong>每份最多 10 MB · 每次 8 个</strong></div><p className="quiet">不同角色的知识库独立保存。对话附件仅用于对应的那段对话。</p></section>}
     {tab==='wechat'&&<section className="setting-card"><div className="setting-symbol"><MessageCircle size={23}/></div><h3>在微信里，继续聊。</h3><p>扫码并在手机上确认后，微信消息会交给「{roleName}」里的知君处理。</p>{!user.ready?<p className="notice">{user.reason}</p>:<>{channels.map(c=><div className="wechat-row" key={c.id}><span>微信 · {c.enabled?'已启用':'已暂停'}{c.status==='connected'?' · 已连接':''}</span><button disabled={busy} onClick={()=>run(async()=>{await api('/wechat/'+c.id,'PATCH',{enabled:!c.enabled});setRevision(x=>x+1);})}>{c.enabled?'暂停':'启用'}</button></div>)}{qr?<div className="qr"><QRCodeSVG value={qr} size={210}/><p>请使用微信扫描，并在手机上确认。</p><button onClick={()=>poll.current?.abort()}>取消连接</button></div>:<button className="primary" disabled={busy} onClick={connect}>{busy?'正在连接…':channels.length?'重新连接微信':'扫码连接微信'}<ArrowUpRight size={15}/></button>}</>}</section>}

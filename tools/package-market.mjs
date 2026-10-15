@@ -7,7 +7,7 @@ import {createPrivateKey, createPublicKey} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const serverFiles = ['app', 'attachments', 'expert-selection', 'host-client', 'host-runtime', 'knowledge-error', 'library', 'memory', 'ontology', 'policy', 'provision', 'roles', 'static'];
+const serverFiles = ['app', 'attachments', 'interaction', 'interaction-schema', 'expert-selection', 'host-client', 'host-runtime', 'knowledge-error', 'library', 'memory', 'ontology', 'policy', 'provision', 'roles', 'static'];
 
 // Stage only the managed application runtime, never the working tree or credentials.
 export async function prepareMarketSource(destination, version) {
