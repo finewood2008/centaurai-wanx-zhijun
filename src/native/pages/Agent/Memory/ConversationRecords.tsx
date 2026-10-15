@@ -1,3 +1,4 @@
+import {THREAD_DELETED,currentThreadDeletion} from "../../../../threads";
 import {
   useCallback,
   useEffect,
@@ -171,17 +172,24 @@ export default function ConversationRecords({
   const [cardPage, setCardPage] = useState(1);
   const [cardPageSize, setCardPageSize] = useState(THREAD_LIST_PAGE_SIZE);
 
+  const listRequest = useRef(0);
+  const historyRequest = useRef(0);
+  const selectedThreadRef = useRef<string | null>(null);
+
   const loadThreads = useCallback(async () => {
+    const request = ++listRequest.current;
     setListLoading(true);
     try {
       const list = await octopThreadsApi.list(agentId, 100);
+      if (request !== listRequest.current) return;
       list.sort((a, b) => b.last_active - a.last_active);
       setThreads(list);
     } catch {
+      if (request !== listRequest.current) return;
       setThreads([]);
       message.error(t("memory.loadFailed"));
     } finally {
-      setListLoading(false);
+      if (request === listRequest.current) setListLoading(false);
     }
   }, [agentId, t]);
 
@@ -194,11 +202,14 @@ export default function ConversationRecords({
   }, []);
 
   useEffect(() => {
+    selectedThreadRef.current = null;
+    historyRequest.current++;
     setSelectedThread(null);
     setDrawerOpen(false);
     resetHistoryState();
     setCardPage(1);
     void loadThreads();
+    return () => { listRequest.current++; historyRequest.current++; };
   }, [agentId, loadThreads, resetHistoryState]);
 
   const fetchThreadHistory = useCallback(
@@ -218,20 +229,24 @@ export default function ConversationRecords({
 
   const openThread = useCallback(
     async (thread: OctopThread) => {
+      const request = ++historyRequest.current;
+      selectedThreadRef.current = thread.thread_id;
       setSelectedThread(thread);
       setDrawerOpen(true);
       setHistoryLoading(true);
       resetHistoryState();
       try {
         const page = await fetchThreadHistory(thread.thread_id, 0);
+        if (request !== historyRequest.current) return;
         setMessages(page.messages);
         setHistoryHasMore(page.hasMore);
         setHistoryNextOffset(page.nextOffset);
       } catch {
+        if (request !== historyRequest.current) return;
         resetHistoryState();
         message.error(t("memory.conversationLoadFailed"));
       } finally {
-        setHistoryLoading(false);
+        if (request === historyRequest.current) setHistoryLoading(false);
       }
     },
     [fetchThreadHistory, resetHistoryState, t],
@@ -254,19 +269,22 @@ export default function ConversationRecords({
     }
 
     setHistoryLoadingMore(true);
+    const request = historyRequest.current;
     try {
       const page = await fetchThreadHistory(
         selectedThread.thread_id,
         historyNextOffset,
       );
+      if (request !== historyRequest.current) return;
       setMessages((prev) => [...page.messages, ...prev]);
       setHistoryHasMore(page.hasMore);
       setHistoryNextOffset(page.nextOffset);
     } catch {
+      if (request !== historyRequest.current) return;
       scrollHeightBeforePrependRef.current = null;
       message.error(t("memory.conversationLoadFailed"));
     } finally {
-      setHistoryLoadingMore(false);
+      if (request === historyRequest.current) setHistoryLoadingMore(false);
     }
   }, [
     selectedThread,
@@ -291,10 +309,26 @@ export default function ConversationRecords({
   }, [messages]);
 
   const closeDrawer = useCallback(() => {
+    historyRequest.current++;
+    selectedThreadRef.current = null;
+    setHistoryLoading(false);
     setDrawerOpen(false);
     setSelectedThread(null);
     resetHistoryState();
   }, [resetHistoryState]);
+
+  useEffect(() => {
+    const deleted = (event: Event) => {
+      const detail = currentThreadDeletion(event);
+      if (!detail) return;
+      listRequest.current++;
+      setListLoading(false);
+      setThreads(rows => rows.filter(row => row.thread_id !== detail.threadId));
+      if (selectedThreadRef.current === detail.threadId) closeDrawer();
+    };
+    window.addEventListener(THREAD_DELETED, deleted);
+    return () => window.removeEventListener(THREAD_DELETED, deleted);
+  }, [closeDrawer]);
 
   const handleDelete = useCallback(
     async (thread: OctopThread) => {
@@ -302,19 +336,13 @@ export default function ConversationRecords({
       try {
         await octopThreadsApi.delete(agentId, thread.thread_id);
         message.success(t("memory.conversationDeleteSuccess"));
-        if (selectedThread?.thread_id === thread.thread_id) {
-          closeDrawer();
-        }
-        setThreads((prev) =>
-          prev.filter((row) => row.thread_id !== thread.thread_id),
-        );
       } catch {
         message.error(t("memory.conversationDeleteFailed"));
       } finally {
         setDeletingId(null);
       }
     },
-    [agentId, closeDrawer, selectedThread?.thread_id, t],
+    [agentId, t],
   );
 
   const confirmDelete = useCallback(
