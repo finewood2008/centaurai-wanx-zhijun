@@ -29,3 +29,16 @@ describe('current-conversation references',()=>{
   const turn=sockets[0].send.mock.calls.map((c:any)=>JSON.parse(c[0])).find((f:any)=>f.type==='user_turn');expect(turn.attachment_ids).toEqual(['opaque']);expect(turn.messages).toBeUndefined();view.unmount();vi.unstubAllGlobals();
  });
 });
+
+it('ignores retired budget events and lets the user send normally',async()=>{
+ const sockets:any[]=[];class Socket{static OPEN=1;readyState=1;onmessage:any;onclose:any;onerror:any;send=vi.fn();close=vi.fn();constructor(){sockets.push(this)}}
+ vi.stubGlobal('WebSocket',Socket);mocked.mockImplementation(async path=>path.endsWith('/history')?{messages:[],has_more:false,next_offset:0}:{});
+ const view=render(<Chat thread="t1" onChanged={()=>{}}/>);
+ await waitFor(()=>expect(screen.queryByText('正在读取这段对话…')).not.toBeInTheDocument());
+ await act(async()=>{sockets[0].onmessage({data:JSON.stringify({type:'ready'})});sockets[0].onmessage({data:JSON.stringify({type:'budget_paused',thread_id:'t1',budget:200})})});
+ expect(screen.queryByRole('region',{name:'追加任务预算'})).not.toBeInTheDocument();
+ fireEvent.change(screen.getByRole('textbox',{name:'和知君说说'}),{target:{value:'正常对话'}});
+ fireEvent.click(screen.getByRole('button',{name:'发送'}));
+ expect(sockets[0].send.mock.calls.map((c:any)=>JSON.parse(c[0])).filter((f:any)=>f.type==='user_turn')).toEqual([{type:'user_turn',thread_id:'t1',text:'正常对话'}]);
+ view.unmount();vi.unstubAllGlobals();
+});

@@ -150,3 +150,19 @@ test('chat never bypasses a failed private-library ownership check',{timeout:500
  await new Promise((resolve,reject)=>{socket.on('error',reject);socket.on('message',raw=>{const frame=JSON.parse(raw);if(frame.type==='ready')socket.send(JSON.stringify({type:'user_turn',text:'你好',thread_id:'t1'}));if(frame.type==='error'){assert.match(frame.message,/私人资料/);resolve();}});});
  assert.equal(f.host.frames.length,0);
 });
+
+test('managed Host forwards chat without budget endpoints or grants',{timeout:5000},async t=>{
+ const f=await fixture(t,{interceptRequest:input=>{
+  if(input.path.startsWith('/api/credits/'))throw new Error('budget endpoint must not be used');
+ }});
+ await f.request('/api/me');
+ const socket=new WebSocket(f.runtime.origin.replace('http:','ws:')+'/api/chat?expert=mine',{headers:{Origin:f.runtime.origin,Cookie:f.cookie}});t.after(()=>socket.terminate());
+ const frames=[];
+ await new Promise((resolve,reject)=>{socket.on('error',reject);socket.on('message',raw=>{const frame=JSON.parse(raw);frames.push(frame);if(frame.type==='ready')socket.send(JSON.stringify({type:'user_turn',thread_id:'t1',text:'test'}));if(frame.type==='done')resolve();});});
+ assert.equal(f.host.frames.length,1);
+ assert.equal(f.host.frames[0].gateway_task_id,undefined);
+ assert.equal(f.host.frames[0].gateway_execution_token,undefined);
+ assert.equal(f.host.frames[0].billing_task_id,undefined);
+ assert.ok(!JSON.stringify(frames).includes('任务上限'));
+ assert.ok(!f.host.calls.some(c=>c.path.startsWith('/api/credits/')));
+});
